@@ -17,7 +17,8 @@ export const DEFAULTS = {
   reachHeight: 0, // if > 0, any hand below this height over the turkey counts (no crouching needed)
 };
 
-export const STUNNED_GRAB = { radius: 0.8, maxHeight: 1.6 };
+// graceSeconds: right after the bonk it's sliding away, so the hand that swung can't grab it instantly.
+export const STUNNED_GRAB = { radius: 0.8, maxHeight: 1.6, graceSeconds: 0.4 };
 
 // Easier tuning: on by default in the desktop emulator, or with ?easy on the headset.
 export const EASY = {
@@ -99,6 +100,7 @@ export function stepTurkey(t, player, dt, cfg = DEFAULTS, rng = Math.random) {
     t.knockZ *= friction;
     clampToArea(t, cfg);
     t.timer -= dt;
+    t.stunAge += dt;
     if (t.timer <= 0) {
       t.mode = 'wander';
       t.target = randomPoint(cfg, rng);
@@ -205,6 +207,7 @@ export function stunTurkey(t, fromX, fromZ, seconds, distance = 1) {
   t.knockZ = dz * distance * 5;
   t.mode = 'stunned';
   t.timer = seconds;
+  t.stunAge = 0;
   t.speed = 0;
   t.heading = Math.atan2(-dx, -dz); // faces whoever bonked it
   return true;
@@ -217,6 +220,7 @@ export function isTouching(t, hand, cfg = DEFAULTS) {
   const dz = hand.z - t.z;
   // A dizzy turkey is easy to grab: any hand below head height, close by, counts (no crouching).
   if (t.mode === 'stunned') {
+    if ((t.stunAge ?? Infinity) < STUNNED_GRAB.graceSeconds) return false;
     return hand.y < STUNNED_GRAB.maxHeight && Math.hypot(dx, dz) < STUNNED_GRAB.radius;
   }
   if (cfg.reachHeight > 0) {

@@ -109,6 +109,8 @@ describe('turkey brain', () => {
     expect(stunTurkey(t, 0, 1, 2.5, 1.0)).toBe(true); // hit from +z, so pushed toward -z
     expect(t.mode).toBe('stunned');
     expect(stunTurkey(t, 0, 1, 2.5, 1.0)).toBe(false); // no double stun
+    // No instant grab by the hand that just swung (it's still sliding away).
+    expect(isTouching(t, { x: t.x, y: 1.0, z: t.z + 0.3 })).toBe(false);
     const player = { x: 0, z: 0.5 }; // right next to it: a normal turkey would flee
     run(t, player, 2.0, rng);
     expect(t.mode).toBe('stunned');
