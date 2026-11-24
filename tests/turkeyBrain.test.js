@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { DEFAULTS, createTurkey, stepTurkey, isTouching, catchTurkey } from '../src/turkeyBrain.js';
+import { DEFAULTS, EASY, createTurkey, stepTurkey, isTouching, catchTurkey } from '../src/turkeyBrain.js';
 
 // Deterministic RNG so tests are repeatable.
 function seeded(seed = 1) {
@@ -89,5 +89,15 @@ describe('turkey brain', () => {
     }
     expect(maxR).toBeGreaterThan(6);
     expect(maxR).toBeLessThanOrEqual(15);
+  });
+
+  it('easy mode: catchable from standing height and slower than a walk', () => {
+    const cfg = { ...DEFAULTS, ...EASY };
+    const rng = seeded(8);
+    const t = createTurkey(cfg, rng);
+    expect(isTouching(t, { x: t.x + 0.5, y: 1.2, z: t.z }, cfg)).toBe(true);
+    expect(isTouching(t, { x: t.x + 1.0, y: 1.2, z: t.z }, cfg)).toBe(false);
+    expect(isTouching(t, { x: t.x, y: 1.8, z: t.z }, cfg)).toBe(false);
+    expect(cfg.fleeSpeed).toBeLessThan(2);
   });
 });

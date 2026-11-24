@@ -14,6 +14,17 @@ export const DEFAULTS = {
   caughtSeconds: 2.2, // celebration time before respawn
   catchRadius: 0.4, // hand-to-body distance that counts as a catch
   bodyHeight: 0.35,
+  reachHeight: 0, // if > 0, any hand below this height over the turkey counts (no crouching needed)
+};
+
+// Easier tuning: on by default in the desktop emulator, or with ?easy on the headset.
+export const EASY = {
+  fleeSpeed: 1.6, // slower than the emulator's 2 m/s walk
+  tiredSpeed: 0.8,
+  sprintSeconds: 2.5,
+  restSeconds: 3.5,
+  catchRadius: 0.7,
+  reachHeight: 1.6,
 };
 
 export function createTurkey(cfg = DEFAULTS, rng = Math.random) {
@@ -158,8 +169,11 @@ export function stepTurkey(t, player, dt, cfg = DEFAULTS, rng = Math.random) {
 export function isTouching(t, hand, cfg = DEFAULTS) {
   if (t.mode === 'caught') return false;
   const dx = hand.x - t.x;
-  const dy = hand.y - cfg.bodyHeight;
   const dz = hand.z - t.z;
+  if (cfg.reachHeight > 0) {
+    return hand.y < cfg.reachHeight && Math.hypot(dx, dz) < cfg.catchRadius;
+  }
+  const dy = hand.y - cfg.bodyHeight;
   return Math.hypot(dx, dy, dz) < cfg.catchRadius;
 }
 
