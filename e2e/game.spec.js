@@ -162,3 +162,24 @@ test('quest unlocks the wet noodle, and swinging it bonks the turkey', async ({ 
   await page.screenshot({ path: 'test-results/noodle.png' });
   expect(errors).toEqual([]);
 });
+
+test('look-and-click: aiming your head at a board button and pulling the trigger presses it', async ({ page }) => {
+  const errors = await enter(page, '#enter-vr', '&reset');
+  await page.waitForFunction(() => window.__game.hands.length === 2, null, { timeout: 10_000 });
+  await page.evaluate(() => window.__game.toggleBoard());
+  await page.evaluate(() => {
+    const d = window.__xrDevice;
+    const m = window.__game.board.mesh;
+    m.updateMatrixWorld();
+    // The "Unlock" button on the Wet Noodle row.
+    const target = m.localToWorld(m.position.clone().set((854 / 1024 - 0.5) * 0.8, (0.5 - 292 / 768) * 0.6, 0));
+    d.position.set(target.x, target.y, target.z + 1); // stand 1 m back, looking straight at it
+    d.quaternion.set(0, 0, 0, 1);
+    const c = d.controllers.right;
+    c.quaternion.set(0, 1, 0, 0); // controller points away, so only the gaze can hit
+    setTimeout(() => c.updateButtonValue('trigger', 1), 200);
+    setTimeout(() => c.updateButtonValue('trigger', 0), 350);
+  });
+  await page.waitForFunction(() => window.__game.board.view === 'quest', null, { timeout: 5_000 });
+  expect(errors).toEqual([]);
+});
