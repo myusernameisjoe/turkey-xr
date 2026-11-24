@@ -2,8 +2,12 @@ import * as THREE from 'three';
 import { DEFAULTS, EASY, createTurkey, stepTurkey, isTouching, catchTurkey } from './turkeyBrain.js';
 import { createTurkeyModel } from './turkeyModel.js';
 import { createYard, createAreaRing } from './yard.js';
-import { renderGobbleBuffer, renderChimeBuffer } from './audio.js';
+import { renderGobbleBuffer, renderChimeBuffer, renderBonkBuffer } from './audio.js';
 import { createTextPanel } from './hud.js';
+import { ITEMS, getItem } from './items/index.js';
+import { QUESTS } from './quests.js';
+import { createProgress } from './progress.js';
+import { createBoard } from './board.js';
 
 const params = new URLSearchParams(location.search);
 const cfg = { ...DEFAULTS };
@@ -59,6 +63,7 @@ gobble.setRefDistance(1.5);
 gobble.setRolloffFactor(1.2);
 turkeyModel.root.add(gobble);
 const chime = new THREE.Audio(listener);
+const bonk = new THREE.Audio(listener);
 let audioReady = false;
 async function initAudio() {
   if (audioReady) return;
@@ -68,6 +73,7 @@ async function initAudio() {
     gobble.setBuffer(await renderGobbleBuffer());
     chime.setBuffer(await renderChimeBuffer());
     chime.setVolume(0.6);
+    bonk.setBuffer(await renderBonkBuffer());
   } catch (e) {
     console.warn('audio unavailable', e);
   }
@@ -81,21 +87,38 @@ function playGobble() {
 
 // ---------- Controllers ----------
 const hands = [];
+const raycaster = new THREE.Raycaster();
+let itemHand = null; // the hand that holds the equipped item (right if present)
 const handMat = new THREE.MeshStandardMaterial({ color: 0xffd166, emissive: 0x553300, roughness: 0.4 });
 for (let i = 0; i < 2; i++) {
   const grip = renderer.xr.getControllerGrip(i);
   const mitt = new THREE.Mesh(new THREE.SphereGeometry(0.045, 16, 12), handMat);
   grip.add(mitt);
-  const hand = { grip, inputSource: null, worldPos: new THREE.Vector3() };
+  const pointer = renderer.xr.getController(i); // target-ray space, for pointing at the board
+  const ray = new THREE.Line(
+    new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0, -3)]),
+    new THREE.LineBasicMaterial({ color: 0xffd166 }),
+  );
+  ray.visible = false;
+  pointer.add(ray);
+  const hand = { grip, pointer, ray, inputSource: null, worldPos: new THREE.Vector3(), aWasDown: false };
   grip.addEventListener('connected', (e) => {
     hand.inputSource = e.data;
     if (e.data.handedness === 'left') grip.add(wristPanel.mesh);
+    if (e.data.handedness === 'right' || !itemHand) itemHand = hand;
+    equipItem(progress.equipped);
   });
   grip.addEventListener('disconnected', () => {
     hand.inputSource = null;
     if (wristPanel.mesh.parent === grip) grip.remove(wristPanel.mesh);
   });
-  scene.add(grip);
+  pointer.addEventListener('select', () => {
+    if (!board.isOpen) return;
+    raycaster.setFromXRController(pointer);
+    const hit = raycaster.intersectObject(board.mesh)[0];
+    if (hit?.uv && board.selectUV(hit.uv)) pulse(hand.inputSource, 0.3, 40);
+  });
+  scene.add(grip, pointer);
   hands.push(hand);
 }
 
@@ -129,9 +152,37 @@ const game = {
 };
 window.__game = game; // read by the automated tests
 
+// ---------- Items & quests ----------
+const progress = createProgress(QUESTS);
+if (params.has('reset')) progress.reset();
+let item = null; // { def, instance }
+function equipItem(id) {
+  const def = getItem(id);
+  if (item?.def === def && (item.instance || !def.create)) return;
+  item?.instance?.dispose();
+  item = { def, instance: def.create ? def.create(scene) : null };
+  game.equipped = def.id;
+  game.item = item;
+  updateScore();
+}
+const board = createBoard({ items: ITEMS, progress, onEquip: equipItem });
+scene.add(board.mesh);
+const headQuat = new THREE.Quaternion();
+function toggleBoard() {
+  if (board.isOpen) board.close();
+  else {
+    renderer.xr.getCamera().getWorldQuaternion(headQuat);
+    board.open(headPos, headQuat);
+  }
+}
+game.progress = progress;
+game.board = board;
+game.toggleBoard = toggleBoard;
+game.equipped = progress.equipped;
+
 const scoreEl = document.getElementById('score');
 function updateScore() {
-  wristPanel.setText(`${game.score}`, game.score === 1 ? 'turkey caught' : 'turkeys caught');
+  wristPanel.setText(`${game.score} caught`, 'Press A or X for items');
   scoreEl.textContent = `Caught: ${game.score}`;
 }
 updateScore();
@@ -181,6 +232,19 @@ async function start(mode) {
 arBtn.addEventListener('click', () => start('ar').catch((e) => (statusEl.textContent = `Could not start AR: ${e.message}`)));
 vrBtn.addEventListener('click', () => start('vr').catch((e) => (statusEl.textContent = `Could not start VR: ${e.message}`)));
 
+function onCatch(hand, itemName) {
+  catchTurkey(turkeyState, cfg);
+  game.score++;
+  game.lastCatchBy = itemName || 'hands';
+  updateScore();
+  pulse(hand.inputSource, 1, 250);
+  if (itemName && bonk.buffer) bonk.play();
+  playGobble();
+  if (chime.buffer) chime.play();
+  banner.setText(itemName ? 'BONK!' : 'Gotcha!', `${game.score} caught`);
+  banner.mesh.visible = true;
+}
+
 // ---------- Loop ----------
 const clock = new THREE.Clock();
 const headPos = new THREE.Vector3();
@@ -202,7 +266,26 @@ renderer.setAnimationLoop(() => {
     camera.getWorldPosition(headPos);
   }
 
-  stepTurkey(turkeyState, { x: headPos.x, z: headPos.z }, dt, cfg);
+  // A or X opens the Item Board.
+  for (const hand of hands) {
+    const down = !!hand.inputSource?.gamepad?.buttons?.[4]?.pressed;
+    if (down && !hand.aWasDown) toggleBoard();
+    hand.aWasDown = down;
+    hand.ray.visible = board.isOpen;
+  }
+  board.tick();
+
+  // The turkey waits politely while the board is open.
+  if (!board.isOpen) stepTurkey(turkeyState, { x: headPos.x, z: headPos.z }, dt, cfg);
+
+  // Equipped item physics + hits.
+  if (item?.instance && itemHand?.inputSource) {
+    item.instance.update(dt, itemHand.grip);
+    if (!board.isOpen && turkeyState.mode !== 'caught' &&
+        item.instance.hits({ x: turkeyState.x, y: cfg.bodyHeight, z: turkeyState.z })) {
+      onCatch(itemHand, item.def.name);
+    }
+  }
 
   // Catch check.
   game.hands = [];
@@ -210,16 +293,7 @@ renderer.setAnimationLoop(() => {
     if (!hand.inputSource) continue;
     hand.grip.getWorldPosition(hand.worldPos);
     game.hands.push({ x: hand.worldPos.x, y: hand.worldPos.y, z: hand.worldPos.z });
-    if (isTouching(turkeyState, hand.worldPos, cfg)) {
-      catchTurkey(turkeyState, cfg);
-      game.score++;
-      updateScore();
-      pulse(hand.inputSource, 1, 250);
-      playGobble();
-      if (chime.buffer) chime.play();
-      banner.setText('Gotcha!', `${game.score} caught`);
-      banner.mesh.visible = true;
-    }
+    if (!board.isOpen && isTouching(turkeyState, hand.worldPos, cfg)) onCatch(hand, null);
   }
 
   // Gobble when it starts running, and now and then while wandering.

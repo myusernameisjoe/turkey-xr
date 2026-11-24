@@ -2,10 +2,10 @@ import { test, expect } from '@playwright/test';
 
 // Plays the game in Meta's IWER headset emulator (emulated Quest 3) in headless Chromium.
 
-async function enter(page, buttonId) {
+async function enter(page, buttonId, extra = '') {
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
-  await page.goto('/?emulate&nodevui');
+  await page.goto(`/?emulate&nodevui${extra}`);
   await expect(page.locator(buttonId)).toBeEnabled({ timeout: 15_000 });
   await page.click(buttonId);
   await page.waitForFunction(() => document.body.classList.contains('in-xr'), null, { timeout: 15_000 });
@@ -94,4 +94,71 @@ test('easy mode (default in emulator): walking at emulator speed catches the tur
     requestAnimationFrame(step);
   });
   await page.waitForFunction(() => window.__game.score >= 1, null, { timeout: 30_000 });
+});
+
+test('quest unlocks the wet noodle, and swinging it bonks the turkey', async ({ page }) => {
+  const errors = await enter(page, '#enter-vr', '&hard');
+  await page.waitForFunction(() => window.__game.hands.length === 2, null, { timeout: 10_000 });
+
+  // Open the board with the A button on the right controller.
+  await page.evaluate(() => {
+    const d = window.__xrDevice;
+    d.controllers.right.updateButtonValue('a-button', 1);
+    setTimeout(() => d.controllers.right.updateButtonValue('a-button', 0), 150);
+  });
+  await page.waitForFunction(() => window.__game.board.isOpen);
+
+  // Walk through the quest: wrong word first, then the right one after the lockout.
+  const res = await page.evaluate(() => {
+    const g = window.__game;
+    const q = g.progress.questFor('wet-noodle');
+    g.board.press('quest:wet-noodle');
+    g.board.press('did-it');
+    const views = [g.board.view];
+    g.board.press(`word:${q.decoys[0]}`);
+    views.push(g.board.view, g.progress.isUnlocked('wet-noodle'));
+    return { views, word: q.word };
+  });
+  expect(res.views).toEqual(['word', 'word', false]);
+  await page.evaluate(() => { performance.now = ((n) => () => n() + 60_000)(performance.now.bind(performance)); });
+  await page.evaluate((w) => window.__game.board.press(`word:${w}`), res.word);
+  expect(await page.evaluate(() => window.__game.board.view)).toBe('unlocked');
+  await page.evaluate(() => window.__game.board.press('equip:wet-noodle'));
+  expect(await page.evaluate(() => window.__game.equipped)).toBe('wet-noodle');
+
+  // Close the board with a real controller ray + trigger pull on "Back to the turkey".
+  await page.evaluate(() => {
+    const d = window.__xrDevice;
+    const m = window.__game.board.mesh;
+    m.updateMatrixWorld();
+    const target = m.localToWorld(m.position.clone().set(0, (0.111 - 0.5) * 0.6, 0));
+    const normal = m.position.clone().set(0, 0, 1).transformDirection(m.matrixWorld);
+    const q = m.quaternion;
+    const c = d.controllers.right;
+    c.position.set(target.x + normal.x * 0.4, target.y + normal.y * 0.4, target.z + normal.z * 0.4);
+    c.quaternion.set(q.x, q.y, q.z, q.w);
+    setTimeout(() => c.updateButtonValue('trigger', 1), 100);
+    setTimeout(() => c.updateButtonValue('trigger', 0), 250);
+  });
+  await page.waitForFunction(() => !window.__game.board.isOpen, null, { timeout: 5_000 });
+
+  // Swing the noodle back and forth in front of the turkey, standing far enough away that a hand can't touch it.
+  await page.evaluate(() => {
+    const d = window.__xrDevice;
+    const c = d.controllers.right;
+    c.quaternion.set(-0.5, 0, 0, 0.866); // tilt the noodle down toward the turkey
+    d.position.set(d.position.x + 20, d.position.y, d.position.z); // keep the head away so it doesn't run
+    const t0 = performance.now();
+    const step = () => {
+      const t = window.__game.turkey;
+      const s = (performance.now() - t0) / 1000;
+      c.position.set(t.x + Math.sin(s * 8) * 0.5, 0.75, t.z + 0.75);
+      if (window.__game.score === 0) requestAnimationFrame(step);
+    };
+    step();
+  });
+  await page.waitForFunction(() => window.__game.score >= 1, null, { timeout: 15_000 });
+  expect(await page.evaluate(() => window.__game.lastCatchBy)).toBe('Wet Noodle');
+  await page.screenshot({ path: 'test-results/noodle.png' });
+  expect(errors).toEqual([]);
 });
