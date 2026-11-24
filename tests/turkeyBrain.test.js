@@ -109,6 +109,8 @@ describe('turkey brain', () => {
     expect(stunTurkey(t, 0, 1, 2.5, 1.0)).toBe(true); // hit from +z, so pushed toward -z
     expect(t.mode).toBe('stunned');
     expect(stunTurkey(t, 0, 1, 2.5, 1.0)).toBe(false); // no double stun
+    // No instant grab by the hand that just swung (it's still sliding away).
+    expect(isTouching(t, { x: t.x, y: 1.0, z: t.z + 0.3 })).toBe(false);
     const player = { x: 0, z: 0.5 }; // right next to it: a normal turkey would flee
     run(t, player, 2.0, rng);
     expect(t.mode).toBe('stunned');
@@ -116,7 +118,11 @@ describe('turkey brain', () => {
     expect(t.z).toBeGreaterThan(-1.05);
     expect(Math.abs(t.x)).toBeLessThan(1e-6);
     expect(isTouching(t, { x: t.x, y: DEFAULTS.bodyHeight, z: t.z })).toBe(true);
+    // Dizzy turkeys can be grabbed from standing height, even in hard mode.
+    expect(isTouching(t, { x: t.x + 0.6, y: 1.3, z: t.z })).toBe(true);
+    expect(isTouching(t, { x: t.x + 1.2, y: 1.3, z: t.z })).toBe(false);
     run(t, player, 0.6, rng);
+    expect(isTouching(t, { x: t.x + 0.6, y: 1.3, z: t.z })).toBe(false);
     expect(t.mode).not.toBe('stunned');
   });
 
