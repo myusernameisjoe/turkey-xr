@@ -5,12 +5,14 @@ A WebXR game for Meta Quest: a turkey is loose in the yard, and you chase it dow
 **Play:** open https://myusernameisjoe.github.io/turkey-xr/ in the Quest Browser and tap **Play in my yard (AR)** (passthrough) or **Play in a fake yard (VR)**.
 
 - No developer mode, sideloading, or install needed. It's a web page.
+- `?easy` makes the turkey slower and lets you tag it from standing height (no crouching). Easy mode is on automatically with `?emulate`; add `&hard` to turn it off.
 - `?area=10` makes the play area a 10 m radius (default 6 m). The yellow ring on the ground marks the edge.
 - The turkey wanders and pecks, sprints away when you're within about 2.5 m, and gets tired after about 4 s of sprinting. Tag it with either controller to score. It gobbles (spatial audio) so you can find it by ear.
 
 ## Desktop testing (no headset)
 
 - Open the page with `?emulate`, e.g. https://myusernameisjoe.github.io/turkey-xr/?emulate. That loads Meta's IWER emulator with an on-screen control panel for the emulated Quest 3 headset and controllers.
+- Emulator controls: click the ▶ Play mode button, look with the mouse, hold Left Shift + W/A/S/D to walk, Esc to release the mouse. In easy mode, walk the controllers over the turkey to tag it.
 - Or install Meta's **Immersive Web Emulator** Chrome extension and open the plain URL.
 
 ## Development

@@ -68,3 +68,30 @@ test('turkey runs from the player in VR', async ({ page }) => {
   });
   await page.waitForFunction(() => window.__game.turkey.mode === 'flee', null, { timeout: 5_000 });
 });
+
+test('easy mode (default in emulator): walking at emulator speed catches the turkey', async ({ page }) => {
+  await enter(page, '#enter-vr');
+  await page.waitForFunction(() => window.__game.hands.length === 2, null, { timeout: 10_000 });
+  // Walk the headset (and both controllers with it, at chest height) toward the turkey at 2 m/s.
+  await page.evaluate(() => {
+    const d = window.__xrDevice;
+    let last = performance.now();
+    const step = (now) => {
+      const dt = Math.min(0.05, (now - last) / 1000);
+      last = now;
+      const t = window.__game.turkey;
+      const p = d.position;
+      const dx = t.x - p.x;
+      const dz = t.z - p.z;
+      const dist = Math.hypot(dx, dz) || 1;
+      const move = Math.min(dist, 2 * dt);
+      p.x += (dx / dist) * move;
+      p.z += (dz / dist) * move;
+      d.controllers.left.position.set(p.x - 0.25, p.y - 0.1, p.z);
+      d.controllers.right.position.set(p.x + 0.25, p.y - 0.1, p.z);
+      if (window.__game.score === 0) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+  });
+  await page.waitForFunction(() => window.__game.score >= 1, null, { timeout: 30_000 });
+});

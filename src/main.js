@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { DEFAULTS, createTurkey, stepTurkey, isTouching, catchTurkey } from './turkeyBrain.js';
+import { DEFAULTS, EASY, createTurkey, stepTurkey, isTouching, catchTurkey } from './turkeyBrain.js';
 import { createTurkeyModel } from './turkeyModel.js';
 import { createYard, createAreaRing } from './yard.js';
 import { renderGobbleBuffer, renderChimeBuffer } from './audio.js';
@@ -7,6 +7,8 @@ import { createTextPanel } from './hud.js';
 
 const params = new URLSearchParams(location.search);
 const cfg = { ...DEFAULTS };
+const easy = params.has('easy') || (params.has('emulate') && !params.has('hard'));
+if (easy) Object.assign(cfg, EASY);
 if (params.has('area')) {
   const a = parseFloat(params.get('area'));
   if (a >= 2 && a <= 50) cfg.areaRadius = a;
