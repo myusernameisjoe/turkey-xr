@@ -116,7 +116,11 @@ describe('turkey brain', () => {
     expect(t.z).toBeGreaterThan(-1.05);
     expect(Math.abs(t.x)).toBeLessThan(1e-6);
     expect(isTouching(t, { x: t.x, y: DEFAULTS.bodyHeight, z: t.z })).toBe(true);
+    // Dizzy turkeys can be grabbed from standing height, even in hard mode.
+    expect(isTouching(t, { x: t.x + 0.6, y: 1.3, z: t.z })).toBe(true);
+    expect(isTouching(t, { x: t.x + 1.2, y: 1.3, z: t.z })).toBe(false);
     run(t, player, 0.6, rng);
+    expect(isTouching(t, { x: t.x + 0.6, y: 1.3, z: t.z })).toBe(false);
     expect(t.mode).not.toBe('stunned');
   });
 

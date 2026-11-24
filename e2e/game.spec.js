@@ -160,15 +160,29 @@ test('quest unlocks the wet noodle; swinging it stuns the turkey, then a tag cat
   // A noodle hit stuns (no point yet)...
   await page.waitForFunction(() => window.__game.turkey.mode === 'stunned', null, { timeout: 15_000 });
   expect(await page.evaluate(() => window.__game.score)).toBe(0);
-  await page.screenshot({ path: 'test-results/noodle-stun.png' });
-  // ...then tag it by hand while it's dizzy.
+  // ...then walk over at emulator speed (2 m/s), controllers at chest height, and grab it while it's dizzy.
   await page.evaluate(() => {
+    const d = window.__xrDevice;
+    let last = performance.now();
+    const step = () => {
+      const now = performance.now(); // (performance.now is shifted earlier in this test)
+      const dt = Math.min(0.05, (now - last) / 1000);
+      last = now;
+      const t = window.__game.turkey;
+      const p = d.position;
+      const dx = t.x - p.x, dz = t.z - p.z;
+      const dist = Math.hypot(dx, dz) || 1;
+      const move = Math.min(dist, 2 * dt);
+      p.x += (dx / dist) * move;
+      p.z += (dz / dist) * move;
+      d.controllers.left.position.set(p.x - 0.25, p.y - 0.3, p.z - 0.3);
+      d.controllers.right.position.set(p.x + 0.25, p.y - 0.3, p.z - 0.3);
+      if (window.__game.score === 0) requestAnimationFrame(step);
+    };
+    // Start from where the noodle swing was (about 1 m behind the hand).
     const t = window.__game.turkey;
-    const h = window.__game.hands[0];
-    const c = window.__xrDevice.controllers.left.position;
-    c.x += t.x - h.x;
-    c.y += window.__game.cfg.bodyHeight - h.y;
-    c.z += t.z - h.z;
+    d.position.set(t.x, d.position.y, t.z + 2.6);
+    requestAnimationFrame(step);
   });
   await page.waitForFunction(() => window.__game.score >= 1, null, { timeout: 5_000 });
   expect(errors).toEqual([]);

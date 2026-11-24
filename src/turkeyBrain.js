@@ -17,6 +17,8 @@ export const DEFAULTS = {
   reachHeight: 0, // if > 0, any hand below this height over the turkey counts (no crouching needed)
 };
 
+export const STUNNED_GRAB = { radius: 0.8, maxHeight: 1.6 };
+
 // Easier tuning: on by default in the desktop emulator, or with ?easy on the headset.
 export const EASY = {
   fleeSpeed: 1.6, // slower than the emulator's 2 m/s walk
@@ -213,6 +215,10 @@ export function isTouching(t, hand, cfg = DEFAULTS) {
   if (t.mode === 'caught') return false;
   const dx = hand.x - t.x;
   const dz = hand.z - t.z;
+  // A dizzy turkey is easy to grab: any hand below head height, close by, counts (no crouching).
+  if (t.mode === 'stunned') {
+    return hand.y < STUNNED_GRAB.maxHeight && Math.hypot(dx, dz) < STUNNED_GRAB.radius;
+  }
   if (cfg.reachHeight > 0) {
     return hand.y < cfg.reachHeight && Math.hypot(dx, dz) < cfg.catchRadius;
   }
