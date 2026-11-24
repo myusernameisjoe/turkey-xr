@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Turkey Chase</title>
+    <style>
+      html, body { margin: 0; height: 100%; overflow: hidden; background: #9fd3f0; font-family: system-ui, sans-serif; }
+      #app canvas { display: block; }
+      #overlay {
+        position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%);
+        width: min(560px, calc(100% - 32px)); box-sizing: border-box;
+        background: rgba(30, 20, 10, 0.82); color: #f4ecdc; border-radius: 16px; padding: 18px 20px;
+        text-align: center;
+      }
+      h1 { margin: 0 0 6px; font-size: 26px; color: #ffd166; }
+      p { margin: 6px 0; line-height: 1.4; font-size: 15px; }
+      .buttons { display: flex; gap: 12px; justify-content: center; margin: 14px 0 6px; flex-wrap: wrap; }
+      button {
+        font: inherit; font-size: 18px; font-weight: 700; padding: 12px 22px; border-radius: 12px; border: 0;
+        background: #ffd166; color: #3b2412; cursor: pointer; min-width: 150px;
+      }
+      button.secondary { background: #f4ecdc; }
+      button:disabled { opacity: 0.4; cursor: not-allowed; }
+      #status { font-size: 13px; opacity: 0.85; min-height: 1em; }
+      #score { position: fixed; top: 14px; right: 16px; background: rgba(30,20,10,0.75); color: #ffd166;
+        padding: 6px 12px; border-radius: 10px; font-weight: 700; }
+      body.in-xr #overlay { display: none; }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+    <div id="score">Caught: 0</div>
+    <div id="overlay">
+      <h1>Turkey Chase</h1>
+      <p>A turkey is loose. Chase it down and tag it with either controller. It runs when you get close, but it gets tired.</p>
+      <div class="buttons">
+        <button id="enter-ar" disabled>Play in my yard (AR)</button>
+        <button id="enter-vr" class="secondary" disabled>Play in a fake yard (VR)</button>
+      </div>
+      <p id="status"></p>
+    </div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
