@@ -108,7 +108,21 @@ export function createTurkeyModel() {
   shadow.position.y = 0.005;
   root.add(shadow);
 
+  // Dizzy stars that circle the head when stunned.
+  const stars = new THREE.Group();
+  stars.position.set(0, 0.78, 0.12);
+  stars.visible = false;
+  const starMat = new THREE.MeshBasicMaterial({ color: 0xffe14d });
+  for (let i = 0; i < 4; i++) {
+    const star = new THREE.Mesh(new THREE.OctahedronGeometry(0.035), starMat);
+    const a = (i / 4) * Math.PI * 2;
+    star.position.set(Math.cos(a) * 0.13, 0, Math.sin(a) * 0.13);
+    stars.add(star);
+  }
+  root.add(stars);
+
   let phase = 0;
+  let dizzy = 0;
   let celebrate = 0;
 
   /** Animate the model from the brain state. */
@@ -133,6 +147,21 @@ export function createTurkeyModel() {
     // Tail: flared when fleeing or caught.
     const flare = state.mode === 'flee' || state.mode === 'caught' ? 1.25 : 1;
     tail.scale.lerp(new THREE.Vector3(flare, flare, 1), Math.min(1, dt * 6));
+
+    // Dizzy wobble.
+    stars.visible = state.mode === 'stunned';
+    if (state.mode === 'stunned') {
+      dizzy += dt;
+      stars.rotation.y += dt * 5;
+      stars.children.forEach((st, i) => (st.rotation.y += dt * (4 + i)));
+      body.rotation.z = Math.sin(dizzy * 7) * 0.25;
+      neck.rotation.x = 0.6 + Math.sin(dizzy * 5) * 0.2;
+      neck.rotation.z = Math.sin(dizzy * 4) * 0.4;
+    } else {
+      dizzy = 0;
+      body.rotation.z = 0;
+      neck.rotation.z = 0;
+    }
 
     if (state.mode === 'caught') {
       celebrate += dt;

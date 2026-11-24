@@ -33,12 +33,14 @@ export function createTurkey(cfg = DEFAULTS, rng = Math.random) {
     z: -3,
     heading: Math.PI,
     speed: 0,
-    mode: 'wander', // wander | peck | flee | caught
+    mode: 'wander', // wander | peck | flee | stunned | caught
     target: null,
     timer: 0,
     stamina: cfg.sprintSeconds,
     tired: 0,
     zig: 0,
+    knockX: 0, // knockback velocity while stunned (m/s)
+    knockZ: 0,
   };
   t.target = randomPoint(cfg, rng);
   return t;
@@ -82,6 +84,23 @@ export function stepTurkey(t, player, dt, cfg = DEFAULTS, rng = Math.random) {
     t.speed = 0;
     t.timer -= dt;
     if (t.timer <= 0) respawn(t, player, cfg, rng);
+    return t;
+  }
+
+  if (t.mode === 'stunned') {
+    // Dizzy: slides from the knockback, then shakes it off.
+    t.speed = 0;
+    t.x += t.knockX * dt;
+    t.z += t.knockZ * dt;
+    const friction = Math.exp(-5 * dt);
+    t.knockX *= friction;
+    t.knockZ *= friction;
+    clampToArea(t, cfg);
+    t.timer -= dt;
+    if (t.timer <= 0) {
+      t.mode = 'wander';
+      t.target = randomPoint(cfg, rng);
+    }
     return t;
   }
 
@@ -156,13 +175,37 @@ export function stepTurkey(t, player, dt, cfg = DEFAULTS, rng = Math.random) {
   t.x += Math.sin(t.heading) * t.speed * dt;
   t.z += Math.cos(t.heading) * t.speed * dt;
 
-  // Hard clamp to the play area.
+  clampToArea(t, cfg);
+  return t;
+}
+
+function clampToArea(t, cfg) {
   const r = Math.hypot(t.x, t.z);
   if (r > cfg.areaRadius) {
     t.x *= cfg.areaRadius / r;
     t.z *= cfg.areaRadius / r;
   }
-  return t;
+}
+
+/**
+ * Knock the turkey dizzy. (fromX, fromZ) is where the hit came from; it gets pushed
+ * `distance` metres directly away from there, then stays put for `seconds`.
+ */
+export function stunTurkey(t, fromX, fromZ, seconds, distance = 1) {
+  if (t.mode === 'caught' || t.mode === 'stunned') return false;
+  let dx = t.x - fromX;
+  let dz = t.z - fromZ;
+  const d = Math.hypot(dx, dz) || 1;
+  dx /= d;
+  dz /= d;
+  // With friction e^(-5t), total slide = v0 / 5.
+  t.knockX = dx * distance * 5;
+  t.knockZ = dz * distance * 5;
+  t.mode = 'stunned';
+  t.timer = seconds;
+  t.speed = 0;
+  t.heading = Math.atan2(-dx, -dz); // faces whoever bonked it
+  return true;
 }
 
 /** True if a hand at (hx, hy, hz) is touching the turkey's body. */
@@ -191,5 +234,7 @@ export function respawn(t, player, cfg = DEFAULTS, rng = Math.random) {
   t.timer = 0;
   t.stamina = cfg.sprintSeconds;
   t.tired = 0;
+  t.knockX = 0;
+  t.knockZ = 0;
   t.target = randomPoint(cfg, rng);
 }
