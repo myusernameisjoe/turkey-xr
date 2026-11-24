@@ -96,7 +96,7 @@ test('easy mode (default in emulator): walking at emulator speed catches the tur
   await page.waitForFunction(() => window.__game.score >= 1, null, { timeout: 30_000 });
 });
 
-test('quest unlocks the wet noodle, and swinging it bonks the turkey', async ({ page }) => {
+test('quest unlocks the wet noodle; swinging it stuns the turkey, then a tag catches it', async ({ page }) => {
   const errors = await enter(page, '#enter-vr', '&hard');
   await page.waitForFunction(() => window.__game.hands.length === 2, null, { timeout: 10_000 });
 
@@ -153,13 +153,24 @@ test('quest unlocks the wet noodle, and swinging it bonks the turkey', async ({ 
       const t = window.__game.turkey;
       const s = (performance.now() - t0) / 1000;
       c.position.set(t.x + Math.sin(s * 8) * 0.5, 0.75, t.z + 0.75);
-      if (window.__game.score === 0) requestAnimationFrame(step);
+      if (window.__game.turkey.mode !== 'stunned') requestAnimationFrame(step);
     };
     step();
   });
-  await page.waitForFunction(() => window.__game.score >= 1, null, { timeout: 15_000 });
-  expect(await page.evaluate(() => window.__game.lastCatchBy)).toBe('Wet Noodle');
-  await page.screenshot({ path: 'test-results/noodle.png' });
+  // A noodle hit stuns (no point yet)...
+  await page.waitForFunction(() => window.__game.turkey.mode === 'stunned', null, { timeout: 15_000 });
+  expect(await page.evaluate(() => window.__game.score)).toBe(0);
+  await page.screenshot({ path: 'test-results/noodle-stun.png' });
+  // ...then tag it by hand while it's dizzy.
+  await page.evaluate(() => {
+    const t = window.__game.turkey;
+    const h = window.__game.hands[0];
+    const c = window.__xrDevice.controllers.left.position;
+    c.x += t.x - h.x;
+    c.y += window.__game.cfg.bodyHeight - h.y;
+    c.z += t.z - h.z;
+  });
+  await page.waitForFunction(() => window.__game.score >= 1, null, { timeout: 5_000 });
   expect(errors).toEqual([]);
 });
 

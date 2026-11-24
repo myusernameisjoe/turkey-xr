@@ -7,14 +7,18 @@ export const wetNoodle = {
   id: 'wet-noodle',
   name: 'Wet Noodle',
   type: 'swing',
-  blurb: 'Floppy. Long reach. Swing it fast to bonk the turkey.',
-  hitRadius: 0.25, // how close the noodle must pass to the turkey's body (m)
+  blurb: 'Long and floppy. Swing it to bonk the turkey dizzy, then tag it.',
+  length: 1.6, // metres of noodle
+  hitRadius: 0.3, // how close the noodle must pass to the turkey's body (m)
   minSwingSpeed: 1.5, // m/s; just touching it doesn't count
+  effect: 'stun', // what a hit does: 'stun' or 'catch'
+  stunSeconds: 2.5,
+  knockback: 1.0, // metres the turkey gets knocked away
   create,
 };
 
 function create(scene) {
-  const sim = createNoodleSim({ segments: 10, length: 1.0, stiffness: 0.07, gravity: 9.8 });
+  const sim = createNoodleSim({ segments: 14, length: wetNoodle.length, stiffness: 0.07, gravity: 9.8 });
   const material = new THREE.MeshStandardMaterial({ color: 0xf3e3a0, roughness: 0.25, metalness: 0.0 });
   let mesh = null;
   const curvePoints = sim.points.map(() => new THREE.Vector3());
@@ -32,7 +36,7 @@ function create(scene) {
     sim.step(anchor, dir, dt);
 
     sim.points.forEach((p, i) => curvePoints[i].set(p.x, p.y, p.z));
-    const geometry = new THREE.TubeGeometry(curve, 24, 0.022, 8, false);
+    const geometry = new THREE.TubeGeometry(curve, 32, 0.022, 8, false);
     if (mesh) {
       mesh.geometry.dispose();
       mesh.geometry = geometry;

@@ -11,7 +11,7 @@ A WebXR game for Meta Quest: a turkey is loose in the yard, and you chase it dow
 
 ## Items and quests
 
-Press **A** or **X** to open the Item Board. Items unlock by doing real-world tasks: the person in the task tells you a secret word. The first one is the **Wet Noodle** (shake Grandpa's hand; tell Grandpa the word from `src/quests.js` first). Swing it fast to bonk the turkey. See [docs/ADDING-ITEMS.md](docs/ADDING-ITEMS.md) to add more.
+Press **A** or **X** to open the Item Board. Items unlock by doing real-world tasks: the person in the task tells you a secret word. The first one is the **Wet Noodle** (shake Grandpa's hand; tell Grandpa the word from `src/quests.js` first). Swing it to bonk the turkey: it gets knocked back and sees stars for 2.5 s, so run over and tag it. See [docs/ADDING-ITEMS.md](docs/ADDING-ITEMS.md) to add more.
 
 `?reset` clears unlocked items.
 

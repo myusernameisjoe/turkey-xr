@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { DEFAULTS, EASY, createTurkey, stepTurkey, isTouching, catchTurkey } from './turkeyBrain.js';
+import { DEFAULTS, EASY, createTurkey, stepTurkey, isTouching, catchTurkey, stunTurkey } from './turkeyBrain.js';
 import { createTurkeyModel } from './turkeyModel.js';
 import { createYard, createAreaRing } from './yard.js';
 import { renderGobbleBuffer, renderChimeBuffer, renderBonkBuffer } from './audio.js';
@@ -257,10 +257,22 @@ function onCatch(hand, itemName) {
   game.lastCatchBy = itemName || 'hands';
   updateScore();
   pulse(hand.inputSource, 1, 250);
-  if (itemName && bonk.buffer) bonk.play();
   playGobble();
   if (chime.buffer) chime.play();
-  banner.setText(itemName ? 'BONK!' : 'Gotcha!', `${game.score} caught`);
+  banner.setText('Gotcha!', `${game.score} caught`);
+  banner.mesh.visible = true;
+}
+
+function onStun(hand, def) {
+  hand.grip.getWorldPosition(hand.worldPos);
+  if (!stunTurkey(turkeyState, hand.worldPos.x, hand.worldPos.z, def.stunSeconds, def.knockback)) return;
+  game.stuns = (game.stuns || 0) + 1;
+  pulse(hand.inputSource, 0.8, 120);
+  if (bonk.buffer) {
+    if (bonk.isPlaying) bonk.stop();
+    bonk.play();
+  }
+  banner.setText('BONK!', 'Quick, tag it!');
   banner.mesh.visible = true;
 }
 
@@ -311,8 +323,10 @@ renderer.setAnimationLoop(() => {
   if (item?.instance && itemHand?.inputSource) {
     item.instance.update(dt, itemHand.grip);
     if (!board.isOpen && turkeyState.mode !== 'caught' &&
+        turkeyState.mode !== 'stunned' &&
         item.instance.hits({ x: turkeyState.x, y: cfg.bodyHeight, z: turkeyState.z })) {
-      onCatch(itemHand, item.def.name);
+      if (item.def.effect === 'stun') onStun(itemHand, item.def);
+      else onCatch(itemHand, item.def.name);
     }
   }
 
@@ -339,7 +353,7 @@ renderer.setAnimationLoop(() => {
   if (banner.mesh.visible) {
     banner.mesh.position.set(turkeyState.x, 1.0, turkeyState.z);
     banner.mesh.lookAt(headPos);
-    if (turkeyState.mode !== 'caught') banner.mesh.visible = false;
+    if (turkeyState.mode !== 'caught' && turkeyState.mode !== 'stunned') banner.mesh.visible = false;
   }
 
   renderer.render(scene, camera);

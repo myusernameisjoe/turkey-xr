@@ -64,31 +64,54 @@ export async function renderChimeBuffer(sampleRate = 44100) {
   return ctx.startRendering();
 }
 
-// Wet "bonk" for the noodle.
+// Cartoon "BONK" + wobbly "boing" for the noodle.
 export async function renderBonkBuffer(sampleRate = 44100) {
-  const duration = 0.35;
+  const duration = 0.7;
   const ctx = new OfflineAudioContext(1, Math.ceil(sampleRate * duration), sampleRate);
-  const o = ctx.createOscillator();
-  o.type = 'sine';
-  o.frequency.setValueAtTime(420, 0);
-  o.frequency.exponentialRampToValueAtTime(90, 0.25);
-  const g = ctx.createGain();
-  g.gain.setValueAtTime(0.9, 0);
-  g.gain.exponentialRampToValueAtTime(0.001, duration);
-  o.connect(g).connect(ctx.destination);
-  // A little splat of noise on top.
-  const noise = ctx.createBuffer(1, Math.ceil(sampleRate * 0.12), sampleRate);
+
+  // The hit: a hollow, woody knock.
+  const knock = ctx.createOscillator();
+  knock.type = 'triangle';
+  knock.frequency.setValueAtTime(260, 0);
+  knock.frequency.exponentialRampToValueAtTime(110, 0.12);
+  const kg = ctx.createGain();
+  kg.gain.setValueAtTime(1.0, 0);
+  kg.gain.exponentialRampToValueAtTime(0.001, 0.18);
+  knock.connect(kg).connect(ctx.destination);
+
+  // The splat on top.
+  const noise = ctx.createBuffer(1, Math.ceil(sampleRate * 0.08), sampleRate);
   const data = noise.getChannelData(0);
   for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / data.length);
   const src = ctx.createBufferSource();
   src.buffer = noise;
   const lp = ctx.createBiquadFilter();
   lp.type = 'lowpass';
-  lp.frequency.value = 1800;
+  lp.frequency.value = 1500;
   const ng = ctx.createGain();
-  ng.gain.value = 0.5;
+  ng.gain.value = 0.45;
   src.connect(lp).connect(ng).connect(ctx.destination);
-  o.start(0);
+
+  // The dizzy "boiiing".
+  const boing = ctx.createOscillator();
+  boing.type = 'sine';
+  boing.frequency.setValueAtTime(330, 0.08);
+  boing.frequency.linearRampToValueAtTime(240, duration);
+  const vib = ctx.createOscillator();
+  vib.frequency.value = 14;
+  const vibDepth = ctx.createGain();
+  vibDepth.gain.value = 35;
+  vib.connect(vibDepth).connect(boing.frequency);
+  const bg = ctx.createGain();
+  bg.gain.setValueAtTime(0, 0);
+  bg.gain.setValueAtTime(0, 0.08);
+  bg.gain.linearRampToValueAtTime(0.45, 0.11);
+  bg.gain.exponentialRampToValueAtTime(0.001, duration);
+  boing.connect(bg).connect(ctx.destination);
+
+  knock.start(0);
   src.start(0);
+  boing.start(0);
+  vib.start(0);
   return ctx.startRendering();
 }

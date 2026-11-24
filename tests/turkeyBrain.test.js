@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { DEFAULTS, EASY, createTurkey, stepTurkey, isTouching, catchTurkey } from '../src/turkeyBrain.js';
+import { DEFAULTS, EASY, createTurkey, stepTurkey, isTouching, catchTurkey, stunTurkey } from '../src/turkeyBrain.js';
 
 // Deterministic RNG so tests are repeatable.
 function seeded(seed = 1) {
@@ -99,5 +99,34 @@ describe('turkey brain', () => {
     expect(isTouching(t, { x: t.x + 1.0, y: 1.2, z: t.z }, cfg)).toBe(false);
     expect(isTouching(t, { x: t.x, y: 1.8, z: t.z }, cfg)).toBe(false);
     expect(cfg.fleeSpeed).toBeLessThan(2);
+  });
+
+  it('stun: knocked back about 1 m, stays dizzy, can be tagged, then recovers', () => {
+    const rng = seeded(9);
+    const t = createTurkey(DEFAULTS, rng);
+    t.x = 0;
+    t.z = 0;
+    expect(stunTurkey(t, 0, 1, 2.5, 1.0)).toBe(true); // hit from +z, so pushed toward -z
+    expect(t.mode).toBe('stunned');
+    expect(stunTurkey(t, 0, 1, 2.5, 1.0)).toBe(false); // no double stun
+    const player = { x: 0, z: 0.5 }; // right next to it: a normal turkey would flee
+    run(t, player, 2.0, rng);
+    expect(t.mode).toBe('stunned');
+    expect(t.z).toBeLessThan(-0.85);
+    expect(t.z).toBeGreaterThan(-1.05);
+    expect(Math.abs(t.x)).toBeLessThan(1e-6);
+    expect(isTouching(t, { x: t.x, y: DEFAULTS.bodyHeight, z: t.z })).toBe(true);
+    run(t, player, 0.6, rng);
+    expect(t.mode).not.toBe('stunned');
+  });
+
+  it('stun knockback never pushes the turkey out of the play area', () => {
+    const rng = seeded(10);
+    const t = createTurkey(DEFAULTS, rng);
+    t.x = DEFAULTS.areaRadius - 0.2;
+    t.z = 0;
+    stunTurkey(t, 0, 0, 2, 3);
+    run(t, { x: 0, z: 0 }, 2, rng);
+    expect(Math.hypot(t.x, t.z)).toBeLessThanOrEqual(DEFAULTS.areaRadius + 1e-6);
   });
 });
