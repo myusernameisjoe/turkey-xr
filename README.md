@@ -9,6 +9,12 @@ A WebXR game for Meta Quest: a turkey is loose in the yard, and you chase it dow
 - `?area=10` makes the play area a 10 m radius (default 6 m). The yellow ring on the ground marks the edge.
 - The turkey wanders and pecks, sprints away when you're within about 2.5 m, and gets tired after about 4 s of sprinting. Tag it with either controller to score. It gobbles (spatial audio) so you can find it by ear.
 
+## Items and quests
+
+Press **A** or **X** to open the Item Board. Items unlock by doing real-world tasks: the person in the task tells you a secret word. The first one is the **Wet Noodle** (shake Grandpa's hand; tell Grandpa the word from `src/quests.js` first). Swing it fast to bonk the turkey. See [docs/ADDING-ITEMS.md](docs/ADDING-ITEMS.md) to add more.
+
+`?reset` clears unlocked items.
+
 ## Desktop testing (no headset)
 
 - Open the page with `?emulate`, e.g. https://myusernameisjoe.github.io/turkey-xr/?emulate. That loads Meta's IWER emulator with an on-screen control panel for the emulated Quest 3 headset and controllers.

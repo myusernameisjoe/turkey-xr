@@ -63,3 +63,32 @@ export async function renderChimeBuffer(sampleRate = 44100) {
   });
   return ctx.startRendering();
 }
+
+// Wet "bonk" for the noodle.
+export async function renderBonkBuffer(sampleRate = 44100) {
+  const duration = 0.35;
+  const ctx = new OfflineAudioContext(1, Math.ceil(sampleRate * duration), sampleRate);
+  const o = ctx.createOscillator();
+  o.type = 'sine';
+  o.frequency.setValueAtTime(420, 0);
+  o.frequency.exponentialRampToValueAtTime(90, 0.25);
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(0.9, 0);
+  g.gain.exponentialRampToValueAtTime(0.001, duration);
+  o.connect(g).connect(ctx.destination);
+  // A little splat of noise on top.
+  const noise = ctx.createBuffer(1, Math.ceil(sampleRate * 0.12), sampleRate);
+  const data = noise.getChannelData(0);
+  for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / data.length);
+  const src = ctx.createBufferSource();
+  src.buffer = noise;
+  const lp = ctx.createBiquadFilter();
+  lp.type = 'lowpass';
+  lp.frequency.value = 1800;
+  const ng = ctx.createGain();
+  ng.gain.value = 0.5;
+  src.connect(lp).connect(ng).connect(ctx.destination);
+  o.start(0);
+  src.start(0);
+  return ctx.startRendering();
+}
