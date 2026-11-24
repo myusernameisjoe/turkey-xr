@@ -18,7 +18,7 @@ Press **A** or **X** to open the Item Board. Items unlock by doing real-world ta
 ## Desktop testing (no headset)
 
 - Open the page with `?emulate`, e.g. https://myusernameisjoe.github.io/turkey-xr/?emulate. That loads Meta's IWER emulator with an on-screen control panel for the emulated Quest 3 headset and controllers.
-- Emulator controls: click the ▶ Play mode button, look with the mouse, hold Left Shift + W/A/S/D to walk, Esc to release the mouse. In easy mode, walk the controllers over the turkey to tag it.
+- Emulator controls: click the ▶ Play mode button, look with the mouse, hold Left Shift + W/A/S/D to walk, Esc to release the mouse. In easy mode, walk the controllers over the turkey to tag it. Press Enter (the A button) for the Item Board; with Play mode on, put the red dot on a button and left-click.
 - Or install Meta's **Immersive Web Emulator** Chrome extension and open the plain URL.
 
 ## Development

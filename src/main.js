@@ -88,6 +88,22 @@ function playGobble() {
 // ---------- Controllers ----------
 const hands = [];
 const raycaster = new THREE.Raycaster();
+const gazeOrigin = new THREE.Vector3();
+const gazeDir = new THREE.Vector3();
+function gazeHit() {
+  const cam = renderer.xr.isPresenting ? renderer.xr.getCamera() : camera;
+  cam.getWorldPosition(gazeOrigin);
+  cam.getWorldDirection(gazeDir);
+  raycaster.set(gazeOrigin, gazeDir);
+  return raycaster.intersectObject(board.mesh)[0] || null;
+}
+// Small dot showing where you're looking on the board.
+const reticle = new THREE.Mesh(
+  new THREE.RingGeometry(0.006, 0.012, 20),
+  new THREE.MeshBasicMaterial({ color: 0xff5a36, depthTest: false }),
+);
+reticle.renderOrder = 1000;
+reticle.visible = false;
 let itemHand = null; // the hand that holds the equipped item (right if present)
 const handMat = new THREE.MeshStandardMaterial({ color: 0xffd166, emissive: 0x553300, roughness: 0.4 });
 for (let i = 0; i < 2; i++) {
@@ -114,8 +130,11 @@ for (let i = 0; i < 2; i++) {
   });
   pointer.addEventListener('select', () => {
     if (!board.isOpen) return;
+    // Try where the controller points first, then where the player is looking
+    // (look-and-click is much easier in the desktop emulator).
     raycaster.setFromXRController(pointer);
-    const hit = raycaster.intersectObject(board.mesh)[0];
+    let hit = raycaster.intersectObject(board.mesh)[0];
+    if (!hit) hit = gazeHit();
     if (hit?.uv && board.selectUV(hit.uv)) pulse(hand.inputSource, 0.3, 40);
   });
   scene.add(grip, pointer);
@@ -166,7 +185,7 @@ function equipItem(id) {
   updateScore();
 }
 const board = createBoard({ items: ITEMS, progress, onEquip: equipItem });
-scene.add(board.mesh);
+scene.add(board.mesh, reticle);
 const headQuat = new THREE.Quaternion();
 function toggleBoard() {
   if (board.isOpen) board.close();
@@ -274,6 +293,16 @@ renderer.setAnimationLoop(() => {
     hand.ray.visible = board.isOpen;
   }
   board.tick();
+  reticle.visible = false;
+  if (board.isOpen) {
+    const g = gazeHit();
+    if (g) {
+      reticle.position.copy(g.point);
+      reticle.quaternion.copy(board.mesh.quaternion);
+      reticle.translateZ(0.002);
+      reticle.visible = true;
+    }
+  }
 
   // The turkey waits politely while the board is open.
   if (!board.isOpen) stepTurkey(turkeyState, { x: headPos.x, z: headPos.z }, dt, cfg);
