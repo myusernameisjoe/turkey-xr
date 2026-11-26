@@ -23,7 +23,7 @@ export const LOCO = {
 };
 
 export function createRig() {
-  return { x: 0, z: 0, yaw: 0, turnArmed: true };
+  return { x: 0, z: 0, yaw: 0, turnArmed: true, pull: null };
 }
 
 // input: { moveX, moveY, turnX } stick values from -1 to 1 (pushing forward makes moveY negative).
@@ -73,4 +73,35 @@ function turnAroundHead(rig, head, a) {
   rig.x = head.x + dx * Math.cos(a) + dz * Math.sin(a);
   rig.z = head.z - dx * Math.sin(a) + dz * Math.cos(a);
   rig.yaw += a;
+}
+
+// ---------- Whip grapple ----------
+// Crack the whip on the ground and you get pulled along the ground toward that spot.
+
+export const PULL = {
+  speed: 5, // meters per second while being pulled
+  stopShort: 0.5, // stop this far before the spot the whip hit
+  maxDistance: 4, // longest single pull (m)
+};
+
+// head: {x, z} where the player stands. target: {x, z} where the whip hit the ground.
+// Returns true if a pull started (too-close cracks are ignored).
+export function startPull(rig, head, target, opts = PULL) {
+  const dx = target.x - head.x;
+  const dz = target.z - head.z;
+  const dist = Math.hypot(dx, dz);
+  const travel = Math.min(dist - opts.stopShort, opts.maxDistance);
+  if (travel < 0.3) return false;
+  rig.pull = { ux: dx / dist, uz: dz / dist, left: travel };
+  return true;
+}
+
+// Moves the pull along by one frame. Returns this frame's {dx, dz} step, or null when not pulling.
+export function stepPull(rig, dt, opts = PULL) {
+  if (!rig.pull) return null;
+  const step = Math.min(rig.pull.left, opts.speed * dt);
+  rig.pull.left -= step;
+  const move = { dx: rig.pull.ux * step, dz: rig.pull.uz * step };
+  if (rig.pull.left <= 1e-6) rig.pull = null;
+  return move;
 }

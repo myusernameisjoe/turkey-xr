@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { DEFAULTS, EASY, createTurkey, stepTurkey, isTouching, catchTurkey, stunTurkey } from './turkeyBrain.js';
 import { createTurkeyModel } from './turkeyModel.js';
 import { createYard, createAreaRing } from './yard.js';
-import { LOCO, createRig, stepRig } from './locomotion.js';
+import { LOCO, createRig, stepRig, startPull, stepPull } from './locomotion.js';
 import { renderGobbleBuffer, renderChimeBuffer, renderBonkBuffer } from './audio.js';
 import { createTextPanel } from './hud.js';
 import { ITEMS, getItem } from './items/index.js';
@@ -329,6 +329,23 @@ function moveWithSticks(dt) {
   renderer.xr.getCamera().getWorldPosition(headPos);
 }
 
+// The whip's pull. In the fake yard it slides you over the ground. In AR it can't
+// move your real body, so it slides the turkey toward you by the same amount instead.
+function grapplePull(dt) {
+  const move = stepPull(rigState, dt);
+  if (!move) return;
+  if (game.mode === 'ar') {
+    turkeyState.x -= move.dx;
+    turkeyState.z -= move.dz;
+    return;
+  }
+  rigState.x += move.dx;
+  rigState.z += move.dz;
+  rig.position.set(rigState.x, 0, rigState.z);
+  rig.updateMatrixWorld(true);
+  renderer.xr.getCamera().getWorldPosition(headPos);
+}
+
 // ---------- Loop ----------
 const clock = new THREE.Clock();
 const headPos = new THREE.Vector3();
@@ -382,7 +399,14 @@ renderer.setAnimationLoop(() => {
       if (item.def.effect === 'stun') onStun(itemHand, item.def);
       else onCatch(itemHand, item.def.name);
     }
+    // Whip grapple: cracking it on the ground pulls you toward that spot.
+    const spot = !board.isOpen && item.instance.crack?.();
+    if (spot && startPull(rigState, headPos, spot)) {
+      game.grapples = (game.grapples || 0) + 1;
+      pulse(itemHand.inputSource, 0.6, 80);
+    }
   }
+  grapplePull(dt);
 
   // Catch check.
   game.hands = [];

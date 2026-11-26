@@ -27,12 +27,19 @@ export const UNLOCKS = [
 4. Add it to the `ITEMS` list in `src/items/index.js`, in ladder order.
 5. Add a line for it in `src/unlocks.js` saying how many catches unlock it.
 
+### Extra powers
+
+An item's `create()` can also return `crack()`: the Red Whip uses it to **grapple**. When the whip's tip
+slaps the ground fast (`groundCrack` in `src/combat.js`), you get pulled along the ground toward that
+spot (`startPull` / `stepPull` in `src/locomotion.js`; tune `PULL.speed`, `stopShort`, `maxDistance`).
+In AR the game can't move your real body, so the turkey slides toward you by the same amount instead.
+
 ### Item types
 
 | Type | Status | How it hits | Ideas |
 | --- | --- | --- | --- |
 | `touch` | done | hand touches the turkey | bare hands |
-| `swing` | done (wet noodle) | a moving stick/chain passes through the turkey fast enough (`swingHits` in `src/combat.js`) | frying pan, baguette, pool noodle |
+| `swing` | done (wet noodle, red whip) | a moving stick/chain passes through the turkey fast enough (`swingHits` in `src/combat.js`) | frying pan, baguette, pool noodle |
 | `launch` | to build | pull back + release, projectile flies with gravity | slingshot, cranberry cannon, water balloons |
 | `spray` | to build | anything in a cone in front of the hand | leaf blower, flamethrower, gravy hose |
 
