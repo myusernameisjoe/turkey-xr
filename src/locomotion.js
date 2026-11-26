@@ -8,6 +8,8 @@
 //   Right stick: push left/right to turn smoothly (push further = turn faster).
 //                With ?snap in the URL it turns in 30-degree steps instead, which
 //                some people find more comfortable if smooth turning makes them queasy.
+//   ?invert:     flips forward/back on the left stick (a test switch, in case the
+//                headset reports the stick upside down).
 
 export const LOCO = {
   speed: 2.5, // meters per second at full stick (a brisk walk)
@@ -17,6 +19,7 @@ export const LOCO = {
   snapAngle: Math.PI / 6, // snap: 30 degrees per flick
   turnPush: 0.6, // how far to push the right stick before it turns
   turnRelease: 0.3, // let go past this before the next turn
+  invertY: false, // true = pulling the left stick back moves you forward (flips forward/back)
 };
 
 export function createRig() {
@@ -28,7 +31,7 @@ export function createRig() {
 export function stepRig(rig, input, head, dt, opts = LOCO) {
   // Glide.
   let sx = input.moveX || 0;
-  let sy = input.moveY || 0;
+  let sy = (input.moveY || 0) * (opts.invertY ? -1 : 1);
   const len = Math.hypot(sx, sy);
   if (len > opts.deadzone) {
     if (len > 1) {

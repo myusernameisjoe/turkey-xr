@@ -6,7 +6,7 @@ A WebXR game for Meta Quest: a turkey is loose in the yard, and you chase it dow
 
 - No developer mode, sideloading, or install needed. It's a web page.
 - `?easy` makes the turkey slower and lets you tag it from standing height (no crouching). Easy mode is on automatically with `?emulate`; add `&hard` to turn it off.
-- In the fake yard (VR), the left stick walks and the right stick turns smoothly. `?snap` turns in 30° steps instead (more comfortable for some people).
+- In the fake yard (VR), the left stick walks and the right stick turns smoothly. `?snap` turns in 30° steps instead (more comfortable for some people). `?invert` flips forward/back on the left stick.
 - `?area=10` makes the play area a 10 m radius (default 6 m). The yellow ring on the ground marks the edge.
 - The turkey wanders and pecks, sprints away when you're within about 2.5 m, and gets tired after about 4 s of sprinting. Tag it with either controller to score. It gobbles (spatial audio) so you can find it by ear.
 

@@ -302,8 +302,8 @@ function resetRig() {
   rig.rotation.set(0, 0, 0);
 }
 const headDir = new THREE.Vector3();
-// Smooth turning by default; ?snap turns in 30-degree steps instead.
-const locoOpts = { ...LOCO, turnMode: params.has('snap') ? 'snap' : 'smooth' };
+// Smooth turning by default; ?snap turns in 30-degree steps instead. ?invert flips forward/back.
+const locoOpts = { ...LOCO, turnMode: params.has('snap') ? 'snap' : 'smooth', invertY: params.has('invert') };
 function moveWithSticks(dt) {
   if (game.mode !== 'vr' || board.isOpen) return;
   const input = { moveX: 0, moveY: 0, turnX: 0 };
