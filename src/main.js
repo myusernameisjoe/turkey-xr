@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { DEFAULTS, EASY, createTurkey, stepTurkey, isTouching, catchTurkey, stunTurkey } from './turkeyBrain.js';
 import { createTurkeyModel } from './turkeyModel.js';
 import { createYard, createAreaRing } from './yard.js';
-import { createRig, stepRig } from './locomotion.js';
+import { LOCO, createRig, stepRig } from './locomotion.js';
 import { renderGobbleBuffer, renderChimeBuffer, renderBonkBuffer } from './audio.js';
 import { createTextPanel } from './hud.js';
 import { ITEMS, getItem } from './items/index.js';
@@ -302,6 +302,8 @@ function resetRig() {
   rig.rotation.set(0, 0, 0);
 }
 const headDir = new THREE.Vector3();
+// Smooth turning by default; ?snap turns in 30-degree steps instead.
+const locoOpts = { ...LOCO, turnMode: params.has('snap') ? 'snap' : 'smooth' };
 function moveWithSticks(dt) {
   if (game.mode !== 'vr' || board.isOpen) return;
   const input = { moveX: 0, moveY: 0, turnX: 0 };
@@ -318,7 +320,7 @@ function moveWithSticks(dt) {
   }
   renderer.xr.getCamera().getWorldDirection(headDir);
   const head = { x: headPos.x, z: headPos.z, yaw: Math.atan2(-headDir.x, -headDir.z) };
-  stepRig(rigState, input, head, dt);
+  stepRig(rigState, input, head, dt, locoOpts);
   rig.position.set(rigState.x, 0, rigState.z);
   rig.rotation.y = rigState.yaw;
   rig.updateMatrixWorld(true);
