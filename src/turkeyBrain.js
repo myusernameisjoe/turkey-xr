@@ -213,15 +213,6 @@ export function stunTurkey(t, fromX, fromZ, seconds, distance = 1) {
   return true;
 }
 
-/**
- * Whip grab: the turkey gets dizzy and is yanked toward the player at (px, pz),
- * sliding until it is `stopAt` metres away (so it lands right in front of you).
- */
-export function grabTurkey(t, px, pz, seconds, stopAt = 0.7) {
-  const dist = Math.hypot(t.x - px, t.z - pz);
-  return stunTurkey(t, px, pz, seconds, -Math.max(0, dist - stopAt));
-}
-
 /** True if a hand at (hx, hy, hz) is touching the turkey's body. */
 export function isTouching(t, hand, cfg = DEFAULTS) {
   if (t.mode === 'caught') return false;
