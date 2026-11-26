@@ -14,6 +14,8 @@ import { ITEMS, getItem } from './items/index.js';
 import { UNLOCKS } from './unlocks.js';
 import { createProgress } from './progress.js';
 import { createBoard } from './board.js';
+import { BOSS, createBoss, stepBoss, bossTargets, hitBoss } from './bossBrain.js';
+import { createBossModel } from './bossModel.js';
 
 const params = new URLSearchParams(location.search);
 const cfg = { ...DEFAULTS };
@@ -65,6 +67,8 @@ scene.add(createAreaRing(cfg.areaRadius));
 const turkeyState = createTurkey(cfg);
 const turkeyModel = createTurkeyModel();
 scene.add(turkeyModel.root);
+const bossModel = createBossModel(); // hidden until you pick "Fight the Boss!" on the Item Board
+scene.add(bossModel.root);
 
 // ---------- Audio ----------
 const listener = new THREE.AudioListener();
@@ -225,7 +229,12 @@ function equipItem(id) {
   game.strawHat = strawHat.visible;
   updateScore();
 }
-const board = createBoard({ items: ITEMS, progress, onEquip: equipItem });
+const board = createBoard({
+  items: ITEMS,
+  progress,
+  onEquip: equipItem,
+  boss: { unlockCatches: BOSS.unlockCatches, isActive: () => !!game.boss, onToggle: () => (game.boss ? endBoss() : startBoss()) },
+});
 scene.add(board.mesh, reticle);
 const headQuat = new THREE.Quaternion();
 function toggleBoard() {
@@ -244,7 +253,7 @@ const scoreEl = document.getElementById('score');
 function updateScore() {
   if (game.eagle) wristPanel.setText(`${game.score} caught`, 'Grip grab, A up, B down');
   else if (game.equipped === 'gum-glob') wristPanel.setText(`${game.score} caught`, 'Trigger throws gum, A/X items');
-  else if (game.equipped === 'rubber-arms') wristPanel.setText(`${game.score} caught`, 'Both triggers punch, A/X items');
+  else if (game.equipped === 'rubber-arms') wristPanel.setText(`${game.score} caught`, 'Triggers punch, A/X items');
   else wristPanel.setText(`${game.score} caught`, 'Press A or X for items');
   scoreEl.textContent = `Caught: ${game.score}`;
 }
@@ -344,6 +353,68 @@ function onStick(hand, def) {
   }
   banner.setText('SPLAT!', "It's stuck! Tag it!");
   banner.mesh.visible = true;
+}
+
+// ---------- Boss fight ----------
+// Pick "Fight the Boss!" on the Item Board (after 10 catches). The normal turkey hides,
+// you get rubber arms in both hands, and a giant three-headed turkey walks up to you.
+game.boss = null; // the boss's state while fighting (see src/bossBrain.js)
+let equippedBeforeBoss = null;
+let bossOverIn = 0; // after you win, seconds until the normal turkey comes back
+function startBoss() {
+  if (progress.totalCatches < BOSS.unlockCatches) return; // locked until you have rubber arms
+  equippedBeforeBoss = progress.equipped;
+  if (progress.equip('rubber-arms')) equipItem('rubber-arms');
+  releaseTalons();
+  camera.getWorldDirection(headDir);
+  game.boss = createBoss({ x: headPos.x, z: headPos.z, yaw: Math.atan2(-headDir.x, -headDir.z) });
+  bossOverIn = 0;
+  turkeyModel.root.visible = false;
+  bossModel.root.visible = true;
+  banner.setText('BOSS FIGHT!', 'Punch it! Heads take double');
+  banner.mesh.visible = true;
+  bannerHold = 3;
+  playGobble();
+}
+function endBoss() {
+  game.boss = null;
+  bossModel.root.visible = false;
+  turkeyModel.root.visible = true;
+  if (equippedBeforeBoss && progress.equip(equippedBeforeBoss)) equipItem(equippedBeforeBoss);
+  board.refresh();
+}
+function onBossHit(hand, onHead) {
+  const b = game.boss;
+  const won = hitBoss(b, onHead);
+  pulse(hand.inputSource, onHead ? 1 : 0.6, 80);
+  if (bonk.buffer) {
+    if (bonk.isPlaying) bonk.stop();
+    bonk.play();
+  }
+  if (!won) return;
+  // You beat it! It counts as 10 catches.
+  for (let i = 0; i < BOSS.prizeCatches; i++) progress.recordCatch();
+  game.score += BOSS.prizeCatches;
+  game.bossWins = (game.bossWins || 0) + 1;
+  updateScore();
+  if (chime.buffer) chime.play();
+  banner.setText('YOU WIN!', `Boss down in ${Math.round(b.time)} s, +${BOSS.prizeCatches}`);
+  banner.mesh.visible = true;
+  bannerHold = 5;
+  bossOverIn = 5;
+}
+function bossFrame(dt) {
+  const b = game.boss;
+  if (!board.isOpen && stepBoss(b, { x: headPos.x, z: headPos.z }, dt) === 'peck') {
+    // PECK! Rumble both hands. It hops back after.
+    for (const h of hands) pulse(h.inputSource, 1, 200);
+    playGobble();
+    game.pecks = (game.pecks || 0) + 1;
+  }
+  if (b.mode === 'defeated') {
+    bossOverIn -= dt;
+    if (bossOverIn <= 0) endBoss();
+  }
 }
 
 // ---------- Eagle talons ----------
@@ -480,7 +551,8 @@ renderer.setAnimationLoop(() => {
   }
 
   // The turkey waits politely while the board is open.
-  if (!board.isOpen) stepTurkey(turkeyState, { x: headPos.x, z: headPos.z }, dt, cfg);
+  if (game.boss) bossFrame(dt);
+  else if (!board.isOpen) stepTurkey(turkeyState, { x: headPos.x, z: headPos.z }, dt, cfg);
 
   useTalons();
   announceLanding();
@@ -491,6 +563,13 @@ renderer.setAnimationLoop(() => {
     if (!instance || !hand?.inputSource) continue;
     const trigger = !board.isOpen && !!hand.inputSource.gamepad?.buttons?.[0]?.pressed;
     instance.update(dt, hand.grip, { trigger, aim: hand.pointer, turkey: turkeyState });
+    if (game.boss) {
+      // Boss fight: only rubber-arm punches count. Heads are checked first (double damage).
+      if (board.isOpen || game.boss.mode === 'defeated' || item.def.id !== 'rubber-arms') continue;
+      const target = bossTargets(game.boss).find((t) => instance.hits(t, t.radius));
+      if (target) onBossHit(hand, target.head);
+      continue;
+    }
     if (!board.isOpen && turkeyState.mode !== 'caught' &&
         turkeyState.mode !== 'stunned' &&
         instance.hits({ x: turkeyState.x, y: cfg.bodyHeight, z: turkeyState.z })) {
@@ -508,7 +587,7 @@ renderer.setAnimationLoop(() => {
     game.hands.push({ x: hand.worldPos.x, y: hand.worldPos.y, z: hand.worldPos.z });
     // As the eagle, touching only catches a dizzy turkey: grab it, fly up and drop it first.
     const canTag = !game.eagle || turkeyState.mode === 'stunned';
-    if (!board.isOpen && canTag && isTouching(turkeyState, hand.worldPos, cfg)) onCatch(hand, game.eagle ? 'Eagle' : null);
+    if (!board.isOpen && !game.boss && canTag && isTouching(turkeyState, hand.worldPos, cfg)) onCatch(hand, game.eagle ? 'Eagle' : null);
   }
 
   // Gobble when it starts running, and now and then while wandering.
@@ -521,9 +600,11 @@ renderer.setAnimationLoop(() => {
   lastMode = turkeyState.mode;
 
   turkeyModel.animate(turkeyState, dt);
+  if (game.boss) bossModel.animate(game.boss, dt);
 
   if (banner.mesh.visible) {
-    banner.mesh.position.set(turkeyState.x, 1.0, turkeyState.z);
+    if (game.boss) banner.mesh.position.set(game.boss.x, 2.8, game.boss.z);
+    else banner.mesh.position.set(turkeyState.x, 1.0, turkeyState.z);
     banner.mesh.lookAt(headPos);
     bannerHold = Math.max(0, bannerHold - dt);
     if (bannerHold === 0 && turkeyState.mode !== 'caught' && turkeyState.mode !== 'stunned') banner.mesh.visible = false;

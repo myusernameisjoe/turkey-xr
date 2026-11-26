@@ -8,7 +8,8 @@ const H = 768;
 const PANEL_W = 0.8; // metres
 const PANEL_H = PANEL_W * (H / W);
 
-export function createBoard({ items, progress, onEquip }) {
+// boss (optional): { unlockCatches, isActive(), onToggle() } for the "Fight the Boss" button.
+export function createBoard({ items, progress, onEquip, boss = null }) {
   const canvas = document.createElement('canvas');
   canvas.width = W;
   canvas.height = H;
@@ -78,6 +79,12 @@ export function createBoard({ items, progress, onEquip }) {
     ctx.fill();
 
     title('Item Board');
+    // Top right: start (or stop) the boss fight.
+    if (boss) {
+      if (boss.isActive()) button('boss', 'Stop boss', 744, 24, 240, 70);
+      else if (progress.totalCatches >= boss.unlockCatches) button('boss', 'Fight the Boss!', 744, 24, 240, 70, { primary: true });
+      else button('boss', `🔒 Boss at ${boss.unlockCatches}`, 744, 24, 240, 70, { disabled: true });
+    }
     para(`Turkeys caught: ${progress.totalCatches}`, 100, 30, '#d8ccb6');
     items.forEach((item, i) => {
       const y = 160 + i * 120;
@@ -140,6 +147,10 @@ export function createBoard({ items, progress, onEquip }) {
     /** Press a button by id (used by the ray, and by tests). */
     press(id) {
       if (id === 'close') return board.close();
+      if (id === 'boss') {
+        board.close();
+        return boss?.onToggle();
+      }
       if (id.startsWith('equip:')) {
         const itemId = id.slice(6);
         if (progress.equip(itemId)) onEquip(itemId);

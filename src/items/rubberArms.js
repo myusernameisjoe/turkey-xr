@@ -69,9 +69,9 @@ function create(scene) {
     }
   }
 
-  /** target: {x,y,z} centre of the turkey's body. */
-  function hits(target) {
-    if (!punchHits(punch, hand, dir, target, rubberArms.hitRadius)) return false;
+  /** target: {x,y,z} centre of the turkey's body. radius: how close counts (the boss is bigger). */
+  function hits(target, radius = rubberArms.hitRadius) {
+    if (!punchHits(punch, hand, dir, target, radius)) return false;
     punch.phase = 'back'; // BOING: the fist bounces off and snaps back
     return true;
   }

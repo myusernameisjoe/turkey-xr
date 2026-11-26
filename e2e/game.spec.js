@@ -505,3 +505,60 @@ test('gum glob (?catches=8): pull the trigger, the gum arcs over and the turkey 
   await page.screenshot({ path: 'test-results/gum-glob.png' });
   expect(errors).toEqual([]);
 });
+
+test('boss fight (?catches=10): Fight the Boss on the board, punch it to 0, win 10 catches', async ({ page }) => {
+  const errors = await enter(page, '#enter-vr', '&hard&catches=10');
+  await page.waitForFunction(() => window.__game.hands.length === 2, null, { timeout: 10_000 });
+  // Open the Item Board and press "Fight the Boss!".
+  await page.evaluate(() => {
+    window.__game.toggleBoard();
+    window.__game.board.press('boss');
+  });
+  expect(await page.evaluate(() => window.__game.board.isOpen)).toBe(false);
+  expect(await page.evaluate(() => window.__game.boss?.health)).toBe(10000);
+  expect(await page.evaluate(() => window.__game.equipped)).toBe('rubber-arms');
+
+  // Hold the right hand 2.5 m in front of the boss's body, pointing at it, and keep punching.
+  await page.evaluate(() => {
+    const c = window.__xrDevice.controllers.right;
+    c.quaternion.set(0, 0, 0, 1); // point straight ahead (-z)
+    const t0 = performance.now();
+    const step = () => {
+      const g = window.__game;
+      const b = g.boss;
+      const h = g.hands[1];
+      if (!b) return;
+      if (h) {
+        c.position.x += b.x - h.x;
+        c.position.y += 0.9 - h.y;
+        c.position.z += b.z + 2.5 - h.z;
+        c.updateButtonValue('trigger', Math.floor((performance.now() - t0) / 400) % 2 ? 0 : 1);
+      }
+      requestAnimationFrame(step);
+    };
+    step();
+  });
+  await page.waitForFunction(() => window.__game.boss.health < 10000, null, { timeout: 10_000 });
+  expect(await page.evaluate(() => window.__game.boss.health)).toBe(9950); // a body punch does 50
+  await page.screenshot({ path: 'test-results/boss.png' });
+
+  // Skip ahead to the last punch.
+  await page.evaluate(() => (window.__game.boss.health = 50));
+  await page.waitForFunction(() => window.__game.boss?.mode === 'defeated', null, { timeout: 10_000 });
+  expect(await page.evaluate(() => window.__game.score)).toBe(10);
+  expect(await page.evaluate(() => window.__game.progress.totalCatches)).toBe(20);
+  await page.screenshot({ path: 'test-results/boss-defeated.png' });
+  // A few seconds later the normal turkey comes back.
+  await page.waitForFunction(() => window.__game.boss === null, null, { timeout: 15_000 });
+  expect(errors).toEqual([]);
+});
+
+test('the boss is locked before 10 catches', async ({ page }) => {
+  const errors = await enter(page, '#enter-vr', '&hard&catches=9');
+  await page.evaluate(() => {
+    window.__game.toggleBoard();
+    window.__game.board.press('boss');
+  });
+  expect(await page.evaluate(() => window.__game.boss)).toBe(null);
+  expect(errors).toEqual([]);
+});
