@@ -5,4 +5,5 @@
 
 export const UNLOCKS = [
   { item: 'wet-noodle', catches: 1 },
+  { item: 'eagle', catches: 2 }, // you turn into an eagle!
 ];

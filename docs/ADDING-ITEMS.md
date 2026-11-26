@@ -33,6 +33,7 @@ export const UNLOCKS = [
 | --- | --- | --- | --- |
 | `touch` | done | hand touches the turkey | bare hands |
 | `swing` | done (wet noodle) | a moving stick/chain passes through the turkey fast enough (`swingHits` in `src/combat.js`) | frying pan, baguette, pool noodle, whip that yanks the turkey to you (tried 2026-11-26, shelved) |
+| `talons` | done (eagle, at 2 catches) | not held: your hands become eagle feet. Grip grabs the turkey (`grabWithTalons` in `src/turkeyBrain.js`), A/B fly up/down (`src/flight.js`), drop it from 1.2 m+ and it lands dizzy, then touch it | |
 | `launch` | to build | pull back + release, projectile flies with gravity | slingshot, cranberry cannon, water balloons |
 | `spray` | to build | anything in a cone in front of the hand | leaf blower, flamethrower, gravy hose |
 

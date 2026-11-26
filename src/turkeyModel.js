@@ -26,12 +26,14 @@ export function createTurkeyModel() {
   body.add(torso);
 
   // Wings
+  const wings = [];
   for (const side of [-1, 1]) {
     const wing = new THREE.Mesh(new THREE.SphereGeometry(1, 14, 10), darkBrown);
     wing.scale.set(0.05, 0.13, 0.2);
     wing.position.set(side * 0.18, 0.01, -0.02);
     wing.rotation.z = side * 0.15;
     body.add(wing);
+    wings.push(wing);
   }
 
   // Tail fan
@@ -163,15 +165,30 @@ export function createTurkeyModel() {
       neck.rotation.z = 0;
     }
 
+    // Grabbed by the eagle (or falling): flap wings and kick legs in a panic.
+    const panicking = state.mode === 'carried' || state.mode === 'falling';
+    wings.forEach((w, i) => {
+      const side = i === 0 ? -1 : 1;
+      w.rotation.z = panicking ? side * (0.6 + Math.sin(phase * 3) * 0.6) : side * 0.15;
+    });
+    if (panicking) {
+      phase += dt * 10;
+      legs[0].rotation.x = Math.sin(phase * 1.3) * 0.9;
+      legs[1].rotation.x = -Math.sin(phase * 1.3) * 0.9;
+    }
+    const lift = state.y || 0;
+
     if (state.mode === 'caught') {
       celebrate += dt;
-      root.position.y = Math.abs(Math.sin(celebrate * 9)) * 0.15;
+      root.position.y = lift + Math.abs(Math.sin(celebrate * 9)) * 0.15;
       root.rotation.y = state.heading + celebrate * 6;
     } else {
       celebrate = 0;
-      root.position.y = 0;
+      root.position.y = lift;
       root.rotation.y = state.heading;
     }
+    shadow.position.y = 0.005 - root.position.y; // the shadow stays on the ground
+    shadow.scale.setScalar(1 / (1 + lift * 0.4)); // and shrinks when it's up high
     root.position.x = state.x;
     root.position.z = state.z;
   }

@@ -20,6 +20,14 @@ export const DEFAULTS = {
 // graceSeconds: right after the bonk it's sliding away, so the hand that swung can't grab it instantly.
 export const STUNNED_GRAB = { radius: 0.8, maxHeight: 1.6, graceSeconds: 0.4 };
 
+// Eagle mode: grab the turkey in your talons, carry it up, and drop it.
+//   grabRadius / grabHeight: how close the talon must be to the turkey's back to grab it.
+//   hang:        how far below the talon the turkey's feet dangle (m).
+//   dizzyHeight: drop it with its feet at least this high and it lands dizzy. Lower, and it just runs off.
+//                Seated, your hands can't reach this high, so you have to fly up first. Standing in AR,
+//                holding your arm straight up just about makes it.
+export const EAGLE = { grabRadius: 0.5, grabHeight: 0.9, hang: 0.55, dizzyHeight: 1.2, dizzySeconds: 4, gravity: 9.8 };
+
 // Easier tuning: on by default in the desktop emulator, or with ?easy on the headset.
 export const EASY = {
   fleeSpeed: 1.6, // slower than the emulator's 2 m/s walk
@@ -36,7 +44,8 @@ export function createTurkey(cfg = DEFAULTS, rng = Math.random) {
     z: -3,
     heading: Math.PI,
     speed: 0,
-    mode: 'wander', // wander | peck | flee | stunned | caught
+    mode: 'wander', // wander | peck | flee | stunned | caught | carried | falling
+    y: 0, // feet height; only above 0 while carried or falling
     target: null,
     timer: 0,
     stamina: cfg.sprintSeconds,
@@ -87,6 +96,19 @@ export function stepTurkey(t, player, dt, cfg = DEFAULTS, rng = Math.random) {
     t.speed = 0;
     t.timer -= dt;
     if (t.timer <= 0) respawn(t, player, cfg, rng);
+    return t;
+  }
+
+  if (t.mode === 'carried') {
+    // Hanging from the eagle's talons. main.js moves it with carryTurkey().
+    t.speed = 0;
+    return t;
+  }
+
+  if (t.mode === 'falling') {
+    t.vy -= EAGLE.gravity * dt;
+    t.y += t.vy * dt;
+    if (t.y <= 0) land(t, player, cfg, rng);
     return t;
   }
 
@@ -196,7 +218,7 @@ function clampToArea(t, cfg) {
  * `distance` metres directly away from there, then stays put for `seconds`.
  */
 export function stunTurkey(t, fromX, fromZ, seconds, distance = 1) {
-  if (t.mode === 'caught' || t.mode === 'stunned') return false;
+  if (['caught', 'stunned', 'carried', 'falling'].includes(t.mode)) return false;
   let dx = t.x - fromX;
   let dz = t.z - fromZ;
   const d = Math.hypot(dx, dz) || 1;
@@ -213,9 +235,60 @@ export function stunTurkey(t, fromX, fromZ, seconds, distance = 1) {
   return true;
 }
 
+/** Eagle talon at `talon` {x,y,z} grabs the turkey if it's close to its back. Returns true if grabbed. */
+export function grabWithTalons(t, talon, cfg = DEFAULTS) {
+  // A dizzy turkey isn't grabbed: touching it catches it instead.
+  if (['caught', 'stunned', 'carried', 'falling'].includes(t.mode)) return false;
+  const dy = talon.y - (t.y + cfg.bodyHeight);
+  if (dy < -0.3 || dy > EAGLE.grabHeight) return false;
+  if (Math.hypot(talon.x - t.x, talon.z - t.z) > EAGLE.grabRadius) return false;
+  t.mode = 'carried';
+  t.speed = 0;
+  t.knockX = 0;
+  t.knockZ = 0;
+  carryTurkey(t, talon, cfg);
+  return true;
+}
+
+/** Keep a carried turkey dangling under the talon. */
+export function carryTurkey(t, talon, cfg = DEFAULTS) {
+  t.x = talon.x;
+  t.z = talon.z;
+  t.y = Math.max(0, talon.y - EAGLE.hang);
+  clampToArea(t, cfg);
+}
+
+/** Let go. It falls; how high it was when dropped decides if it lands dizzy. */
+export function dropTurkey(t) {
+  if (t.mode !== 'carried') return false;
+  t.mode = 'falling';
+  t.dropHeight = t.y;
+  t.vy = 0;
+  return true;
+}
+
+function land(t, player, cfg, rng) {
+  t.y = 0;
+  t.vy = 0;
+  if (t.dropHeight >= EAGLE.dizzyHeight) {
+    t.mode = 'stunned';
+    t.timer = EAGLE.dizzySeconds;
+    t.stunAge = STUNNED_GRAB.graceSeconds; // dizzy right away: no slide, so touching it can catch it at once
+    t.knockX = 0;
+    t.knockZ = 0;
+  } else {
+    // Too low to hurt: it lands on its feet and runs.
+    t.mode = 'flee';
+    t.zig = rng() < 0.5 ? -1 : 1;
+    t.timer = 0;
+  }
+  // Remember how the last drop went (read by the HUD and tests).
+  t.lastLanding = t.mode === 'stunned' ? 'dizzy' : 'ran';
+}
+
 /** True if a hand at (hx, hy, hz) is touching the turkey's body. */
 export function isTouching(t, hand, cfg = DEFAULTS) {
-  if (t.mode === 'caught') return false;
+  if (t.mode === 'caught' || t.mode === 'carried' || t.mode === 'falling') return false;
   const dx = hand.x - t.x;
   const dz = hand.z - t.z;
   // A dizzy turkey is easy to grab: any hand below head height, close by, counts (no crouching).
@@ -246,5 +319,7 @@ export function respawn(t, player, cfg = DEFAULTS, rng = Math.random) {
   t.tired = 0;
   t.knockX = 0;
   t.knockZ = 0;
+  t.y = 0;
+  t.vy = 0;
   t.target = randomPoint(cfg, rng);
 }

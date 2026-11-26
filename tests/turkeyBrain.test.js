@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { DEFAULTS, EASY, createTurkey, stepTurkey, isTouching, catchTurkey, stunTurkey } from '../src/turkeyBrain.js';
+import { DEFAULTS, EASY, EAGLE, createTurkey, stepTurkey, isTouching, catchTurkey, stunTurkey, grabWithTalons, carryTurkey, dropTurkey } from '../src/turkeyBrain.js';
 
 // Deterministic RNG so tests are repeatable.
 function seeded(seed = 1) {
@@ -134,5 +134,63 @@ describe('turkey brain', () => {
     stunTurkey(t, 0, 0, 2, 3);
     run(t, { x: 0, z: 0 }, 2, rng);
     expect(Math.hypot(t.x, t.z)).toBeLessThanOrEqual(DEFAULTS.areaRadius + 1e-6);
+  });
+});
+
+describe('eagle talons', () => {
+  const cfg = DEFAULTS;
+  const fall = (t, rng) => {
+    for (let i = 0; i < 300 && t.mode === 'falling'; i++) stepTurkey(t, { x: 50, z: 50 }, DT, cfg, rng);
+  };
+
+  it('grabs the turkey only when the talon is right over its back', () => {
+    const t = createTurkey(cfg, seeded(1));
+    expect(grabWithTalons(t, { x: t.x + 2, y: 0.6, z: t.z }, cfg)).toBe(false); // too far sideways
+    expect(grabWithTalons(t, { x: t.x, y: 2.5, z: t.z }, cfg)).toBe(false); // too high
+    expect(grabWithTalons(t, { x: t.x + 0.2, y: 0.7, z: t.z }, cfg)).toBe(true);
+    expect(t.mode).toBe('carried');
+  });
+
+  it('carries the turkey along, dangling under the talon, and you cannot catch it while carrying', () => {
+    const t = createTurkey(cfg, seeded(1));
+    grabWithTalons(t, { x: t.x, y: 0.7, z: t.z }, cfg);
+    carryTurkey(t, { x: 1, y: 3, z: 2 }, cfg);
+    expect(t.x).toBe(1);
+    expect(t.z).toBe(2);
+    expect(t.y).toBeCloseTo(3 - EAGLE.hang);
+    stepTurkey(t, { x: 1, z: 2 }, DT, cfg); // stays carried even with the player right there
+    expect(t.mode).toBe('carried');
+    expect(isTouching(t, { x: 1, y: 3, z: 2 }, cfg)).toBe(false);
+  });
+
+  it('a high drop lands it dizzy, and then a touch catches it', () => {
+    const rng = seeded(4);
+    const t = createTurkey(cfg, rng);
+    grabWithTalons(t, { x: t.x, y: 0.7, z: t.z }, cfg);
+    carryTurkey(t, { x: 0, y: 3, z: 0 }, cfg);
+    dropTurkey(t);
+    expect(t.mode).toBe('falling');
+    fall(t, rng);
+    expect(t.y).toBe(0);
+    expect(t.mode).toBe('stunned');
+    expect(t.lastLanding).toBe('dizzy');
+    expect(isTouching(t, { x: 0.3, y: 0.8, z: 0 }, cfg)).toBe(true);
+  });
+
+  it('a low drop just makes it run away', () => {
+    const rng = seeded(5);
+    const t = createTurkey(cfg, rng);
+    grabWithTalons(t, { x: t.x, y: 0.7, z: t.z }, cfg);
+    carryTurkey(t, { x: 0, y: 1.2, z: 0 }, cfg); // feet at 0.65 m: seated-arm height
+    dropTurkey(t);
+    fall(t, rng);
+    expect(t.lastLanding).toBe('ran');
+    expect(t.mode).not.toBe('stunned');
+  });
+
+  it('a dizzy turkey is caught by touch, not grabbed', () => {
+    const t = createTurkey(cfg, seeded(1));
+    stunTurkey(t, t.x + 1, t.z, 3, 0);
+    expect(grabWithTalons(t, { x: t.x, y: 0.7, z: t.z }, cfg)).toBe(false);
   });
 });
