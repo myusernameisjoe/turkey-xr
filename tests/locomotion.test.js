@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { LOCO, PULL, createRig, stepRig, startPull, stepPull } from '../src/locomotion.js';
+import { LOCO, createRig, stepRig } from '../src/locomotion.js';
 
 const facingForward = { x: 0, z: 0, yaw: 0 }; // looking down -Z
 const still = { moveX: 0, moveY: 0, turnX: 0 };
@@ -108,29 +108,5 @@ describe('snap turn (?snap)', () => {
     const hz = rig.z - local.x * Math.sin(rig.yaw) + local.z * Math.cos(rig.yaw);
     expect(hx).toBeCloseTo(1);
     expect(hz).toBeCloseTo(0);
-  });
-});
-
-describe('whip grapple pull', () => {
-  it('pulls you along the ground toward the crack, stopping a bit short', () => {
-    const rig = createRig();
-    expect(startPull(rig, { x: 0, z: 0 }, { x: 0, z: -3 })).toBe(true);
-    let moved = { x: 0, z: 0 };
-    for (let i = 0; i < 100; i++) {
-      const m = stepPull(rig, 1 / 72);
-      if (!m) break;
-      moved.x += m.dx;
-      moved.z += m.dz;
-    }
-    expect(rig.pull).toBe(null);
-    expect(moved.x).toBeCloseTo(0);
-    expect(moved.z).toBeCloseTo(-(3 - PULL.stopShort));
-  });
-
-  it('never pulls further than maxDistance, and ignores cracks right at your feet', () => {
-    const rig = createRig();
-    startPull(rig, { x: 0, z: 0 }, { x: 20, z: 0 });
-    expect(rig.pull.left).toBeCloseTo(PULL.maxDistance);
-    expect(startPull(createRig(), { x: 0, z: 0 }, { x: 0.4, z: 0 })).toBe(false);
   });
 });

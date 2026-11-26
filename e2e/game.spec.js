@@ -281,34 +281,36 @@ test('fake yard: ?invert flips forward/back on the left stick', async ({ page })
   await page.evaluate(() => window.__xrDevice.controllers.left.updateAxes('thumbstick', 0, 0));
 });
 
-test('red whip: cracking it on the ground pulls you toward that spot', async ({ page }) => {
+test('red whip: hitting the turkey yanks it right up to you', async ({ page }) => {
   await page.addInitScript(() =>
     localStorage.setItem('turkey-xr-progress-v2', JSON.stringify({ totalCatches: 5, equipped: 'whip' })));
   const errors = await enter(page, '#enter-vr', '&save&hard');
   await page.waitForFunction(() => window.__game.hands.length === 2, null, { timeout: 10_000 });
   expect(await page.evaluate(() => window.__game.equipped)).toBe('whip');
-  const before = await page.evaluate(() => ({ ...window.__game.rig }));
 
-  // Raise the whip, then flick it down hard in front of you, over and over until it grapples.
+  // Stand about 4 m from the turkey and swing the whip back and forth across it.
   await page.evaluate(() => {
     const d = window.__xrDevice;
     const c = d.controllers.right;
+    c.quaternion.set(-0.5, 0, 0, 0.866); // tilt the whip down toward the turkey
     const t0 = performance.now();
     const step = () => {
-      const s = ((performance.now() - t0) / 1000) % 1.6; // one flick every 1.6 s
-      const down = Math.min(1, Math.max(0, (s - 0.9) / 0.4)); // hold up, then swing down (slow enough for slow test machines)
-      const a = (-0.8 + 1.6 * down) / 2; // tilt from 45 degrees up to 45 degrees down
-      c.quaternion.set(Math.sin(-a), 0, 0, Math.cos(a));
-      const p = d.position;
-      c.position.set(p.x + 0.25, p.y - 0.3 - 0.3 * down, p.z - 0.3 - 0.2 * down);
-      if (!window.__game.grapples) requestAnimationFrame(step);
+      const t = window.__game.turkey;
+      const s = (performance.now() - t0) / 1000;
+      d.position.set(t.x, d.position.y, t.z + 4);
+      c.position.set(t.x + Math.sin(s * 8) * 0.5, 0.75, t.z + 0.75);
+      if (window.__game.turkey.mode !== 'stunned') requestAnimationFrame(step);
+      else window.__grabbedFrom = { x: d.position.x, z: d.position.z };
     };
     step();
   });
-  await page.waitForFunction(() => window.__game.grapples >= 1, null, { timeout: 10_000 });
-  await page.waitForFunction(() => window.__game.rig.pull === null, null, { timeout: 3_000 });
-  const after = await page.evaluate(() => ({ ...window.__game.rig }));
-  // Pulled forward (toward -Z, where you're facing), along the ground.
-  expect(before.z - after.z).toBeGreaterThan(0.5);
+  await page.waitForFunction(() => window.__game.turkey.mode === 'stunned', null, { timeout: 15_000 });
+  // It slides toward where you're standing and stops just in front of you.
+  await page.waitForTimeout(1200);
+  const dist = await page.evaluate(() => {
+    const t = window.__game.turkey, p = window.__grabbedFrom;
+    return Math.hypot(t.x - p.x, t.z - p.z);
+  });
+  expect(dist).toBeLessThan(1.5);
   expect(errors).toEqual([]);
 });

@@ -26,15 +26,3 @@ export function swingHits(points, speeds, target, radius, minSpeed) {
   }
   return false;
 }
-
-/**
- * Ground crack (the whip's grapple): is the tip of the chain slapping the ground fast?
- * Returns the {x, z} spot it hit, or null.
- * points/speeds like swingHits. maxHeight: how close to the ground (m) the tip must be.
- */
-export function groundCrack(points, speeds, minSpeed, maxHeight = 0.1) {
-  const tip = points[points.length - 1];
-  if (tip.y > maxHeight) return null;
-  if (speeds[speeds.length - 1] < minSpeed) return null;
-  return { x: tip.x, z: tip.z };
-}
