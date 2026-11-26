@@ -253,6 +253,24 @@ test('AR yard: sticks do not move the player', async ({ page }) => {
   expect(await page.evaluate(() => window.__game.rig.x === 0 && window.__game.rig.z === 0)).toBe(true);
 });
 
+test('catches start over on every page load unless ?save is in the URL', async ({ page }) => {
+  const catches = () => page.evaluate(() => window.__game.progress.totalCatches);
+  await page.goto('/?emulate&nodevui');
+  await page.waitForFunction(() => window.__game?.progress);
+  await page.evaluate(() => window.__game.progress.recordCatch());
+  expect(await catches()).toBe(1);
+  await page.reload();
+  await page.waitForFunction(() => window.__game?.progress);
+  expect(await catches()).toBe(0);
+
+  await page.goto('/?emulate&nodevui&save&reset');
+  await page.waitForFunction(() => window.__game?.progress);
+  await page.evaluate(() => window.__game.progress.recordCatch());
+  await page.goto('/?emulate&nodevui&save');
+  await page.waitForFunction(() => window.__game?.progress);
+  expect(await catches()).toBe(1);
+});
+
 test('fake yard: ?invert flips forward/back on the left stick', async ({ page }) => {
   await enter(page, '#enter-vr', '&invert');
   await page.waitForFunction(() => window.__game.hands.length === 2, null, { timeout: 10_000 });
