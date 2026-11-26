@@ -96,9 +96,32 @@ test('easy mode (default in emulator): walking at emulator speed catches the tur
   await page.waitForFunction(() => window.__game.score >= 1, null, { timeout: 30_000 });
 });
 
-test('quest unlocks the wet noodle; swinging it stuns the turkey, then a tag catches it', async ({ page }) => {
+test('catching 1 turkey unlocks the wet noodle; swinging it stuns the turkey, then a grab catches it', async ({ page }) => {
   const errors = await enter(page, '#enter-vr', '&hard');
   await page.waitForFunction(() => window.__game.hands.length === 2, null, { timeout: 10_000 });
+  expect(await page.evaluate(() => window.__game.progress.isUnlocked('wet-noodle'))).toBe(false);
+
+  // Catch one turkey by hand.
+  await page.evaluate(() => {
+    const d = window.__xrDevice;
+    const step = () => {
+      const t = window.__game.turkey;
+      const h = window.__game.hands[0];
+      const c = d.controllers.left.position;
+      c.x += t.x - h.x;
+      c.y += window.__game.cfg.bodyHeight - h.y;
+      c.z += t.z - h.z;
+      if (window.__game.score === 0) requestAnimationFrame(step);
+      else c.set(d.position.x - 0.25, d.position.y - 0.1, d.position.z - 0.4); // hand back by your side
+    };
+    step();
+  });
+  await page.waitForFunction(() => window.__game.score === 1, null, { timeout: 10_000 });
+
+  // That unlocks the noodle and puts it straight in your hand.
+  expect(await page.evaluate(() => window.__game.lastUnlock)).toBe('wet-noodle');
+  expect(await page.evaluate(() => window.__game.equipped)).toBe('wet-noodle');
+  await page.waitForFunction(() => window.__game.turkey.mode !== 'caught', null, { timeout: 5_000 });
 
   // Open the board with the A button on the right controller.
   await page.evaluate(() => {
@@ -107,24 +130,6 @@ test('quest unlocks the wet noodle; swinging it stuns the turkey, then a tag cat
     setTimeout(() => d.controllers.right.updateButtonValue('a-button', 0), 150);
   });
   await page.waitForFunction(() => window.__game.board.isOpen);
-
-  // Walk through the quest: wrong word first, then the right one after the lockout.
-  const res = await page.evaluate(() => {
-    const g = window.__game;
-    const q = g.progress.questFor('wet-noodle');
-    g.board.press('quest:wet-noodle');
-    g.board.press('did-it');
-    const views = [g.board.view];
-    g.board.press(`word:${q.decoys[0]}`);
-    views.push(g.board.view, g.progress.isUnlocked('wet-noodle'));
-    return { views, word: q.word };
-  });
-  expect(res.views).toEqual(['word', 'word', false]);
-  await page.evaluate(() => { performance.now = ((n) => () => n() + 60_000)(performance.now.bind(performance)); });
-  await page.evaluate((w) => window.__game.board.press(`word:${w}`), res.word);
-  expect(await page.evaluate(() => window.__game.board.view)).toBe('unlocked');
-  await page.evaluate(() => window.__game.board.press('equip:wet-noodle'));
-  expect(await page.evaluate(() => window.__game.equipped)).toBe('wet-noodle');
 
   // Close the board with a real controller ray + trigger pull on "Back to the turkey".
   await page.evaluate(() => {
@@ -159,13 +164,13 @@ test('quest unlocks the wet noodle; swinging it stuns the turkey, then a tag cat
   });
   // A noodle hit stuns (no point yet)...
   await page.waitForFunction(() => window.__game.turkey.mode === 'stunned', null, { timeout: 15_000 });
-  expect(await page.evaluate(() => window.__game.score)).toBe(0);
+  expect(await page.evaluate(() => window.__game.score)).toBe(1);
   // ...then walk over at emulator speed (2 m/s), controllers at chest height, and grab it while it's dizzy.
   await page.evaluate(() => {
     const d = window.__xrDevice;
     let last = performance.now();
     const step = () => {
-      const now = performance.now(); // (performance.now is shifted earlier in this test)
+      const now = performance.now();
       const dt = Math.min(0.05, (now - last) / 1000);
       last = now;
       const t = window.__game.turkey;
@@ -177,14 +182,14 @@ test('quest unlocks the wet noodle; swinging it stuns the turkey, then a tag cat
       p.z += (dz / dist) * move;
       d.controllers.left.position.set(p.x - 0.25, p.y - 0.3, p.z - 0.3);
       d.controllers.right.position.set(p.x + 0.25, p.y - 0.3, p.z - 0.3);
-      if (window.__game.score === 0) requestAnimationFrame(step);
+      if (window.__game.score === 1) requestAnimationFrame(step);
     };
     // Start from where the noodle swing was (about 1 m behind the hand).
     const t = window.__game.turkey;
     d.position.set(t.x, d.position.y, t.z + 2.6);
     requestAnimationFrame(step);
   });
-  await page.waitForFunction(() => window.__game.score >= 1, null, { timeout: 5_000 });
+  await page.waitForFunction(() => window.__game.score >= 2, null, { timeout: 5_000 });
   expect(errors).toEqual([]);
 });
 
@@ -196,8 +201,8 @@ test('look-and-click: aiming your head at a board button and pulling the trigger
     const d = window.__xrDevice;
     const m = window.__game.board.mesh;
     m.updateMatrixWorld();
-    // The "Unlock" button on the Wet Noodle row.
-    const target = m.localToWorld(m.position.clone().set((854 / 1024 - 0.5) * 0.8, (0.5 - 292 / 768) * 0.6, 0));
+    // The "Back to the turkey" button.
+    const target = m.localToWorld(m.position.clone().set(0, (0.5 - 683 / 768) * 0.6, 0));
     d.position.set(target.x, target.y, target.z + 1); // stand 1 m back, looking straight at it
     d.quaternion.set(0, 0, 0, 1);
     const c = d.controllers.right;
@@ -205,7 +210,7 @@ test('look-and-click: aiming your head at a board button and pulling the trigger
     setTimeout(() => c.updateButtonValue('trigger', 1), 200);
     setTimeout(() => c.updateButtonValue('trigger', 0), 350);
   });
-  await page.waitForFunction(() => window.__game.board.view === 'quest', null, { timeout: 5_000 });
+  await page.waitForFunction(() => !window.__game.board.isOpen, null, { timeout: 5_000 });
   expect(errors).toEqual([]);
 });
 

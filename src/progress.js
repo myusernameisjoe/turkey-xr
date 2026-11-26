@@ -1,65 +1,56 @@
 // Unlock + equip state, saved on the device. Pure logic; storage is injected so tests can fake it.
 
-const KEY = 'turkey-xr-progress-v1';
-export const WRONG_GUESS_LOCKOUT = 10; // seconds before you can guess again
+const KEY = 'turkey-xr-progress-v2';
 
-export function createProgress(quests, storage = safeStorage()) {
+export function createProgress(unlocks, storage = safeStorage()) {
   const state = load(storage);
 
   function save() {
     try {
-      storage?.setItem(KEY, JSON.stringify({ unlocked: state.unlocked, equipped: state.equipped }));
+      storage?.setItem(KEY, JSON.stringify(state));
     } catch {
       /* private mode etc.; progress just won't persist */
     }
   }
 
-  return {
+  function required(itemId) {
+    return unlocks.find((u) => u.item === itemId)?.catches ?? null;
+  }
+
+  const progress = {
     get equipped() {
       return state.equipped;
     },
+    get totalCatches() {
+      return state.totalCatches;
+    },
+    /** Catches needed to unlock an item (null if it has no unlock rule). */
+    required,
     isUnlocked(itemId) {
-      return itemId === 'hands' || state.unlocked.includes(itemId);
+      if (itemId === 'hands') return true;
+      const n = required(itemId);
+      return n !== null && state.totalCatches >= n;
     },
-    questFor(itemId) {
-      return quests.find((q) => q.unlocks === itemId) || null;
-    },
-    /** Shuffled answer choices for a quest. */
-    choices(quest, rng = Math.random) {
-      const all = [quest.word, ...quest.decoys];
-      for (let i = all.length - 1; i > 0; i--) {
-        const j = Math.floor(rng() * (i + 1));
-        [all[i], all[j]] = [all[j], all[i]];
-      }
-      return all;
-    },
-    lockoutRemaining(now) {
-      return Math.max(0, (state.lockedUntil - now) / 1000);
-    },
-    /** Returns 'unlocked' | 'wrong' | 'locked-out'. now = ms timestamp. */
-    guess(quest, word, now) {
-      if (now < state.lockedUntil) return 'locked-out';
-      if (word.trim().toLowerCase() === quest.word.trim().toLowerCase()) {
-        if (!state.unlocked.includes(quest.unlocks)) state.unlocked.push(quest.unlocks);
-        save();
-        return 'unlocked';
-      }
-      state.lockedUntil = now + WRONG_GUESS_LOCKOUT * 1000;
-      return 'wrong';
+    /** Count a catch. Returns the ids of items this catch just unlocked. */
+    recordCatch() {
+      const before = state.totalCatches;
+      state.totalCatches++;
+      save();
+      return unlocks.filter((u) => u.catches > before && u.catches <= state.totalCatches).map((u) => u.item);
     },
     equip(itemId) {
-      if (!this.isUnlocked(itemId)) return false;
+      if (!progress.isUnlocked(itemId)) return false;
       state.equipped = itemId;
       save();
       return true;
     },
     reset() {
-      state.unlocked = [];
+      state.totalCatches = 0;
       state.equipped = 'hands';
-      state.lockedUntil = 0;
       save();
     },
   };
+  return progress;
 }
 
 function load(storage) {
@@ -67,12 +58,15 @@ function load(storage) {
     const raw = storage?.getItem(KEY);
     if (raw) {
       const s = JSON.parse(raw);
-      return { unlocked: Array.isArray(s.unlocked) ? s.unlocked : [], equipped: s.equipped || 'hands', lockedUntil: 0 };
+      return {
+        totalCatches: Number.isFinite(s.totalCatches) ? s.totalCatches : 0,
+        equipped: typeof s.equipped === 'string' ? s.equipped : 'hands',
+      };
     }
   } catch {
     /* ignore */
   }
-  return { unlocked: [], equipped: 'hands', lockedUntil: 0 };
+  return { totalCatches: 0, equipped: 'hands' };
 }
 
 function safeStorage() {

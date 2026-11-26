@@ -9,9 +9,9 @@ A WebXR game for Meta Quest: a turkey is loose in the yard, and you chase it dow
 - `?area=10` makes the play area a 10 m radius (default 6 m). The yellow ring on the ground marks the edge.
 - The turkey wanders and pecks, sprints away when you're within about 2.5 m, and gets tired after about 4 s of sprinting. Tag it with either controller to score. It gobbles (spatial audio) so you can find it by ear.
 
-## Items and quests
+## Items
 
-Press **A** or **X** to open the Item Board. Items unlock by doing real-world tasks: the person in the task tells you a secret word. The first one is the **Wet Noodle** (shake Grandpa's hand; tell Grandpa the word from `src/quests.js` first). Swing it to bonk the turkey: it gets knocked back and sees stars for 2.5 s, so run over and tag it. See [docs/ADDING-ITEMS.md](docs/ADDING-ITEMS.md) to add more.
+Catching turkeys unlocks items (the count is saved on the headset). Catch **1** turkey to get the **Wet Noodle**: swing it to bonk the turkey dizzy for 2.5 s, then grab it. Press **A** or **X** to open the Item Board and swap items. See [docs/ADDING-ITEMS.md](docs/ADDING-ITEMS.md) to add more.
 
 `?reset` clears unlocked items.
 
