@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { DEFAULTS, EASY, createTurkey, stepTurkey, isTouching, catchTurkey, stunTurkey, grabTurkey } from './turkeyBrain.js';
+import { DEFAULTS, EASY, createTurkey, stepTurkey, isTouching, catchTurkey, stunTurkey } from './turkeyBrain.js';
 import { createTurkeyModel } from './turkeyModel.js';
 import { createYard, createAreaRing } from './yard.js';
 import { LOCO, createRig, stepRig } from './locomotion.js';
@@ -283,17 +283,14 @@ function onCatch(hand, itemName) {
 
 function onStun(hand, def) {
   hand.grip.getWorldPosition(hand.worldPos);
-  const hit = def.effect === 'grab'
-    ? grabTurkey(turkeyState, headPos.x, headPos.z, def.stunSeconds, def.stopAt) // yank it to you
-    : stunTurkey(turkeyState, hand.worldPos.x, hand.worldPos.z, def.stunSeconds, def.knockback);
-  if (!hit) return;
+  if (!stunTurkey(turkeyState, hand.worldPos.x, hand.worldPos.z, def.stunSeconds, def.knockback)) return;
   game.stuns = (game.stuns || 0) + 1;
   pulse(hand.inputSource, 0.8, 120);
   if (bonk.buffer) {
     if (bonk.isPlaying) bonk.stop();
     bonk.play();
   }
-  banner.setText(def.effect === 'grab' ? 'GOTCHA!' : 'BONK!', 'Quick, tag it!');
+  banner.setText('BONK!', 'Quick, tag it!');
   banner.mesh.visible = true;
 }
 
@@ -383,7 +380,7 @@ renderer.setAnimationLoop(() => {
     if (!board.isOpen && turkeyState.mode !== 'caught' &&
         turkeyState.mode !== 'stunned' &&
         item.instance.hits({ x: turkeyState.x, y: cfg.bodyHeight, z: turkeyState.z })) {
-      if (item.def.effect === 'stun' || item.def.effect === 'grab') onStun(itemHand, item.def);
+      if (item.def.effect === 'stun') onStun(itemHand, item.def);
       else onCatch(itemHand, item.def.name);
     }
   }

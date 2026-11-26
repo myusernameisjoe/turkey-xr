@@ -281,40 +281,6 @@ test('fake yard: ?invert flips forward/back on the left stick', async ({ page })
   await page.evaluate(() => window.__xrDevice.controllers.left.updateAxes('thumbstick', 0, 0));
 });
 
-test('red whip: hitting the turkey yanks it right up to you', async ({ page }) => {
-  await page.addInitScript(() =>
-    localStorage.setItem('turkey-xr-progress-v2', JSON.stringify({ totalCatches: 5, equipped: 'whip' })));
-  const errors = await enter(page, '#enter-vr', '&save&hard');
-  await page.waitForFunction(() => window.__game.hands.length === 2, null, { timeout: 10_000 });
-  expect(await page.evaluate(() => window.__game.equipped)).toBe('whip');
-
-  // Stand about 4 m from the turkey and swing the whip back and forth across it.
-  await page.evaluate(() => {
-    const d = window.__xrDevice;
-    const c = d.controllers.right;
-    c.quaternion.set(-0.5, 0, 0, 0.866); // tilt the whip down toward the turkey
-    const t0 = performance.now();
-    const step = () => {
-      const t = window.__game.turkey;
-      const s = (performance.now() - t0) / 1000;
-      d.position.set(t.x, d.position.y, t.z + 4);
-      c.position.set(t.x + Math.sin(s * 8) * 0.5, 0.75, t.z + 0.75);
-      if (window.__game.turkey.mode !== 'stunned') requestAnimationFrame(step);
-      else window.__grabbedFrom = { x: d.position.x, z: d.position.z };
-    };
-    step();
-  });
-  await page.waitForFunction(() => window.__game.turkey.mode === 'stunned', null, { timeout: 15_000 });
-  // It slides toward where you're standing and stops just in front of you.
-  await page.waitForTimeout(1200);
-  const dist = await page.evaluate(() => {
-    const t = window.__game.turkey, p = window.__grabbedFrom;
-    return Math.hypot(t.x - p.x, t.z - p.z);
-  });
-  expect(dist).toBeLessThan(1.5);
-  expect(errors).toEqual([]);
-});
-
 test('fake yard: after turning right, pushing the left stick forward goes where you now look', async ({ page }) => {
   const errors = await enter(page, '#enter-vr', '&snap');
   await page.waitForFunction(() => window.__game.hands.length === 2, null, { timeout: 10_000 });
