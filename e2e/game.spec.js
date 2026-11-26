@@ -314,3 +314,24 @@ test('red whip: hitting the turkey yanks it right up to you', async ({ page }) =
   expect(dist).toBeLessThan(1.5);
   expect(errors).toEqual([]);
 });
+
+test('fake yard: after turning right, pushing the left stick forward goes where you now look', async ({ page }) => {
+  const errors = await enter(page, '#enter-vr', '&snap');
+  await page.waitForFunction(() => window.__game.hands.length === 2, null, { timeout: 10_000 });
+  // Three snap turns to the right = 90 degrees. You now face +X.
+  for (let i = 0; i < 3; i++) {
+    await page.evaluate(() => window.__xrDevice.controllers.right.updateAxes('thumbstick', 1, 0));
+    await page.waitForTimeout(150);
+    await page.evaluate(() => window.__xrDevice.controllers.right.updateAxes('thumbstick', 0, 0));
+    await page.waitForTimeout(150);
+  }
+  expect(await page.evaluate(() => window.__game.rig.yaw)).toBeCloseTo(-Math.PI / 2);
+  const a = await page.evaluate(() => ({ ...window.__game.rig }));
+  await page.evaluate(() => window.__xrDevice.controllers.left.updateAxes('thumbstick', 0, -1));
+  await page.waitForTimeout(500);
+  await page.evaluate(() => window.__xrDevice.controllers.left.updateAxes('thumbstick', 0, 0));
+  const b = await page.evaluate(() => ({ ...window.__game.rig }));
+  expect(b.x - a.x).toBeGreaterThan(0.5); // moved toward +X...
+  expect(Math.abs(b.z - a.z)).toBeLessThan(0.2); // ...not off at an angle
+  expect(errors).toEqual([]);
+});
