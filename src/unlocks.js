@@ -6,4 +6,5 @@
 export const UNLOCKS = [
   { item: 'wet-noodle', catches: 1 },
   { item: 'eagle', catches: 2 }, // you turn into an eagle!
+  { item: 'rubber-arms', catches: 10 }, // stretchy punching arms + a straw hat
 ];

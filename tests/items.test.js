@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { segmentPointDistance, swingHits } from '../src/combat.js';
+import { segmentPointDistance, swingHits, createPunch, firePunch, stepPunch, punchHits } from '../src/combat.js';
 import { createNoodleSim } from '../src/items/noodleSim.js';
 import { createProgress } from '../src/progress.js';
 import { UNLOCKS } from '../src/unlocks.js';
@@ -87,5 +87,55 @@ describe('unlocks and progress', () => {
     const p = createProgress(UNLOCKS, null);
     expect(p.equipped).toBe('hands');
     expect(p.totalCatches).toBe(0);
+  });
+});
+
+describe('rubber arms punch', () => {
+  const opts = { reach: 4, outSpeed: 14, backSpeed: 9 };
+  const dt = 1 / 72;
+
+  it('flies out to full reach, snaps back, and only fires when the fist is home', () => {
+    const p = createPunch();
+    expect(firePunch(p)).toBe(true);
+    expect(firePunch(p)).toBe(false); // can't punch again mid-punch
+    let maxDist = 0, steps = 0;
+    while (p.phase !== 'ready' && steps++ < 1000) {
+      stepPunch(p, dt, opts);
+      maxDist = Math.max(maxDist, p.dist);
+    }
+    expect(maxDist).toBeCloseTo(4);
+    expect(p.dist).toBe(0);
+    expect(steps * dt).toBeLessThan(1); // the whole punch takes under a second
+    expect(firePunch(p)).toBe(true);
+  });
+
+  it('hits a turkey 3 m away in front, misses one off to the side or out of reach', () => {
+    const hand = { x: 0, y: 1, z: 0 };
+    const down = Math.hypot(3, 0.65);
+    const dir = { x: 0, y: -0.65 / down, z: -3 / down }; // aimed at the turkey's body
+    const run = (target) => {
+      const p = createPunch();
+      firePunch(p);
+      for (let i = 0; i < 200 && p.phase !== 'ready'; i++) {
+        stepPunch(p, dt, opts);
+        if (punchHits(p, hand, dir, target, 0.35)) return true;
+      }
+      return false;
+    };
+    expect(run({ x: 0, y: 0.35, z: -3 })).toBe(true);
+    expect(run({ x: 1, y: 0.35, z: -3 })).toBe(false);
+    expect(run({ x: 0, y: 0.35 - 0.65 * 0.7, z: -6 })).toBe(false); // too far
+  });
+
+  it('a fist snapping back does not hit', () => {
+    const p = { phase: 'back', dist: 1, lastDist: 1.2 };
+    expect(punchHits(p, { x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: -1 }, { x: 0, y: 0, z: -1.1 }, 0.35)).toBe(false);
+  });
+
+  it('unlocks at 10 catches', () => {
+    const p = createProgress(UNLOCKS, null);
+    for (let i = 0; i < 9; i++) p.recordCatch();
+    expect(p.isUnlocked('rubber-arms')).toBe(false);
+    expect(p.recordCatch()).toEqual(['rubber-arms']);
   });
 });
