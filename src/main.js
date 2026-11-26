@@ -1,8 +1,8 @@
 import * as THREE from 'three';
-import { DEFAULTS, EASY, createTurkey, stepTurkey, isTouching, catchTurkey, stunTurkey } from './turkeyBrain.js';
+import { DEFAULTS, EASY, createTurkey, stepTurkey, isTouching, catchTurkey, stunTurkey, grabTurkey } from './turkeyBrain.js';
 import { createTurkeyModel } from './turkeyModel.js';
 import { createYard, createAreaRing } from './yard.js';
-import { LOCO, createRig, stepRig, startPull, stepPull } from './locomotion.js';
+import { LOCO, createRig, stepRig } from './locomotion.js';
 import { renderGobbleBuffer, renderChimeBuffer, renderBonkBuffer } from './audio.js';
 import { createTextPanel } from './hud.js';
 import { ITEMS, getItem } from './items/index.js';
@@ -284,14 +284,17 @@ function onCatch(hand, itemName) {
 
 function onStun(hand, def) {
   hand.grip.getWorldPosition(hand.worldPos);
-  if (!stunTurkey(turkeyState, hand.worldPos.x, hand.worldPos.z, def.stunSeconds, def.knockback)) return;
+  const hit = def.effect === 'grab'
+    ? grabTurkey(turkeyState, headPos.x, headPos.z, def.stunSeconds, def.stopAt) // yank it to you
+    : stunTurkey(turkeyState, hand.worldPos.x, hand.worldPos.z, def.stunSeconds, def.knockback);
+  if (!hit) return;
   game.stuns = (game.stuns || 0) + 1;
   pulse(hand.inputSource, 0.8, 120);
   if (bonk.buffer) {
     if (bonk.isPlaying) bonk.stop();
     bonk.play();
   }
-  banner.setText('BONK!', 'Quick, tag it!');
+  banner.setText(def.effect === 'grab' ? 'GOTCHA!' : 'BONK!', 'Quick, tag it!');
   banner.mesh.visible = true;
 }
 
@@ -325,23 +328,6 @@ function moveWithSticks(dt) {
   stepRig(rigState, input, head, dt, locoOpts);
   rig.position.set(rigState.x, 0, rigState.z);
   rig.rotation.y = rigState.yaw;
-  rig.updateMatrixWorld(true);
-  renderer.xr.getCamera().getWorldPosition(headPos);
-}
-
-// The whip's pull. In the fake yard it slides you over the ground. In AR it can't
-// move your real body, so it slides the turkey toward you by the same amount instead.
-function grapplePull(dt) {
-  const move = stepPull(rigState, dt);
-  if (!move) return;
-  if (game.mode === 'ar') {
-    turkeyState.x -= move.dx;
-    turkeyState.z -= move.dz;
-    return;
-  }
-  rigState.x += move.dx;
-  rigState.z += move.dz;
-  rig.position.set(rigState.x, 0, rigState.z);
   rig.updateMatrixWorld(true);
   renderer.xr.getCamera().getWorldPosition(headPos);
 }
@@ -396,17 +382,10 @@ renderer.setAnimationLoop(() => {
     if (!board.isOpen && turkeyState.mode !== 'caught' &&
         turkeyState.mode !== 'stunned' &&
         item.instance.hits({ x: turkeyState.x, y: cfg.bodyHeight, z: turkeyState.z })) {
-      if (item.def.effect === 'stun') onStun(itemHand, item.def);
+      if (item.def.effect === 'stun' || item.def.effect === 'grab') onStun(itemHand, item.def);
       else onCatch(itemHand, item.def.name);
     }
-    // Whip grapple: cracking it on the ground pulls you toward that spot.
-    const spot = !board.isOpen && item.instance.crack?.();
-    if (spot && startPull(rigState, headPos, spot)) {
-      game.grapples = (game.grapples || 0) + 1;
-      pulse(itemHand.inputSource, 0.6, 80);
-    }
   }
-  grapplePull(dt);
 
   // Catch check.
   game.hands = [];

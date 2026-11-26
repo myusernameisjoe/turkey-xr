@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { DEFAULTS, EASY, createTurkey, stepTurkey, isTouching, catchTurkey, stunTurkey } from '../src/turkeyBrain.js';
+import { DEFAULTS, EASY, createTurkey, stepTurkey, isTouching, catchTurkey, stunTurkey, grabTurkey } from '../src/turkeyBrain.js';
 
 // Deterministic RNG so tests are repeatable.
 function seeded(seed = 1) {
@@ -124,6 +124,20 @@ describe('turkey brain', () => {
     run(t, player, 0.6, rng);
     expect(isTouching(t, { x: t.x + 0.6, y: 1.3, z: t.z })).toBe(false);
     expect(t.mode).not.toBe('stunned');
+  });
+
+  it('whip grab: the turkey is yanked toward you and lands just in front', () => {
+    const rng = seeded(11);
+    const t = createTurkey(DEFAULTS, rng);
+    t.x = 0;
+    t.z = -3; // 3 m in front of the player
+    const player = { x: 0, z: 0 };
+    expect(grabTurkey(t, player.x, player.z, 2.5, 0.7)).toBe(true);
+    run(t, player, 2.0, rng);
+    expect(t.mode).toBe('stunned');
+    expect(t.z).toBeGreaterThan(-0.9); // pulled toward you, not pushed away...
+    expect(t.z).toBeLessThan(-0.5); // ...and stops just in front of you
+    expect(Math.abs(t.x)).toBeLessThan(1e-6);
   });
 
   it('stun knockback never pushes the turkey out of the play area', () => {
