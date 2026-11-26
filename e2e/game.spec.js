@@ -252,3 +252,12 @@ test('AR yard: sticks do not move the player', async ({ page }) => {
   await page.waitForTimeout(500);
   expect(await page.evaluate(() => window.__game.rig.x === 0 && window.__game.rig.z === 0)).toBe(true);
 });
+
+test('fake yard: ?invert flips forward/back on the left stick', async ({ page }) => {
+  await enter(page, '#enter-vr', '&invert');
+  await page.waitForFunction(() => window.__game.hands.length === 2, null, { timeout: 10_000 });
+  // Head faces -Z. Pushing forward should now move toward +Z (backward).
+  await page.evaluate(() => window.__xrDevice.controllers.left.updateAxes('thumbstick', 0, -1));
+  await page.waitForFunction(() => window.__game.rig.z > 0.5, null, { timeout: 5_000 });
+  await page.evaluate(() => window.__xrDevice.controllers.left.updateAxes('thumbstick', 0, 0));
+});
