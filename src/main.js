@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { DEFAULTS, EASY, createTurkey, stepTurkey, isTouching, catchTurkey, stunTurkey } from './turkeyBrain.js';
 import { createTurkeyModel } from './turkeyModel.js';
 import { createYard, createAreaRing } from './yard.js';
+import { createRig, stepRig } from './locomotion.js';
 import { renderGobbleBuffer, renderChimeBuffer, renderBonkBuffer } from './audio.js';
 import { createTextPanel } from './hud.js';
 import { ITEMS, getItem } from './items/index.js';
@@ -40,7 +41,12 @@ scene.fog = new THREE.Fog(0x9fd3f0, 25, 60);
 const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.05, 200);
 camera.position.set(0, 3.2, cfg.areaRadius + 3);
 camera.lookAt(0, 0, 0);
-scene.add(camera);
+
+// The player's "rig": the head (camera) and both hands ride on it.
+// Moving or turning the rig moves the player through the fake yard (joysticks).
+const rig = new THREE.Group();
+rig.add(camera);
+scene.add(rig);
 
 scene.add(new THREE.HemisphereLight(0xeaf6ff, 0x4a5a2a, 1.6));
 const sun = new THREE.DirectionalLight(0xffffff, 1.6);
@@ -137,7 +143,7 @@ for (let i = 0; i < 2; i++) {
     if (!hit) hit = gazeHit();
     if (hit?.uv && board.selectUV(hit.uv)) pulse(hand.inputSource, 0.3, 40);
   });
-  scene.add(grip, pointer);
+  rig.add(grip, pointer);
   hands.push(hand);
 }
 
@@ -239,6 +245,7 @@ async function start(mode) {
   renderer.setClearColor(0x000000, mode === 'ar' ? 0 : 1);
   session.addEventListener('end', () => {
     game.mode = 'preview';
+    resetRig();
     yard.visible = true;
     scene.background = skyColor;
     scene.fog = new THREE.Fog(0x9fd3f0, 25, 60);
@@ -276,6 +283,38 @@ function onStun(hand, def) {
   banner.mesh.visible = true;
 }
 
+// ---------- Joystick movement (fake yard only) ----------
+const rigState = createRig();
+game.rig = rigState;
+function resetRig() {
+  Object.assign(rigState, createRig());
+  rig.position.set(0, 0, 0);
+  rig.rotation.set(0, 0, 0);
+}
+const headDir = new THREE.Vector3();
+function moveWithSticks(dt) {
+  if (game.mode !== 'vr' || board.isOpen) return;
+  const input = { moveX: 0, moveY: 0, turnX: 0 };
+  for (const hand of hands) {
+    // Quest thumbsticks are axes 2 (left/right) and 3 (forward/back).
+    const axes = hand.inputSource?.gamepad?.axes;
+    if (!axes || axes.length < 4) continue;
+    if (hand.inputSource.handedness === 'left') {
+      input.moveX = axes[2];
+      input.moveY = axes[3];
+    } else if (hand.inputSource.handedness === 'right') {
+      input.turnX = axes[2];
+    }
+  }
+  renderer.xr.getCamera().getWorldDirection(headDir);
+  const head = { x: headPos.x, z: headPos.z, yaw: Math.atan2(-headDir.x, -headDir.z) };
+  stepRig(rigState, input, head, dt);
+  rig.position.set(rigState.x, 0, rigState.z);
+  rig.rotation.y = rigState.yaw;
+  rig.updateMatrixWorld(true);
+  renderer.xr.getCamera().getWorldPosition(headPos);
+}
+
 // ---------- Loop ----------
 const clock = new THREE.Clock();
 const headPos = new THREE.Vector3();
@@ -296,6 +335,7 @@ renderer.setAnimationLoop(() => {
     camera.lookAt(0, 0.3, 0);
     camera.getWorldPosition(headPos);
   }
+  moveWithSticks(dt);
 
   // A or X opens the Item Board.
   for (const hand of hands) {
