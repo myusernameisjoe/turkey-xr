@@ -97,9 +97,8 @@ const raycaster = new THREE.Raycaster();
 const gazeOrigin = new THREE.Vector3();
 const gazeDir = new THREE.Vector3();
 function gazeHit() {
-  const cam = renderer.xr.isPresenting ? renderer.xr.getCamera() : camera;
-  cam.getWorldPosition(gazeOrigin);
-  cam.getWorldDirection(gazeDir);
+  camera.getWorldPosition(gazeOrigin);
+  camera.getWorldDirection(gazeDir);
   raycaster.set(gazeOrigin, gazeDir);
   return raycaster.intersectObject(board.mesh)[0] || null;
 }
@@ -198,7 +197,7 @@ const headQuat = new THREE.Quaternion();
 function toggleBoard() {
   if (board.isOpen) board.close();
   else {
-    renderer.xr.getCamera().getWorldQuaternion(headQuat);
+    camera.getWorldQuaternion(headQuat);
     board.open(headPos, headQuat);
   }
 }
@@ -323,13 +322,13 @@ function moveWithSticks(dt) {
       input.turnX = axes[2];
     }
   }
-  renderer.xr.getCamera().getWorldDirection(headDir);
+  camera.getWorldDirection(headDir);
   const head = { x: headPos.x, z: headPos.z, yaw: Math.atan2(-headDir.x, -headDir.z) };
   stepRig(rigState, input, head, dt, locoOpts);
   rig.position.set(rigState.x, 0, rigState.z);
   rig.rotation.y = rigState.yaw;
   rig.updateMatrixWorld(true);
-  renderer.xr.getCamera().getWorldPosition(headPos);
+  camera.getWorldPosition(headPos);
 }
 
 // ---------- Loop ----------
@@ -343,8 +342,10 @@ renderer.setAnimationLoop(() => {
   const dt = Math.min(clock.getDelta(), 0.05);
 
   // Where is the player?
+  // Always ask `camera` (it rides on the rig), never camera: that one
+  // only knows where you are in the real room, so it misses joystick moves and turns.
   if (renderer.xr.isPresenting) {
-    renderer.xr.getCamera().getWorldPosition(headPos);
+    camera.getWorldPosition(headPos);
   } else {
     previewAngle += dt * 0.08;
     const r = cfg.areaRadius + 3;
