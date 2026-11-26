@@ -12,6 +12,16 @@ describe('joystick glide', () => {
     expect(rig.x).toBeCloseTo(0);
   });
 
+  it('invertY flips forward and back, but not left and right', () => {
+    const opts = { ...LOCO, invertY: true };
+    const rig = createRig();
+    stepRig(rig, { ...still, moveY: 1 }, facingForward, 1, opts); // stick pulled back
+    expect(rig.z).toBeCloseTo(-LOCO.speed); // ...moves forward
+    const rig2 = createRig();
+    stepRig(rig2, { ...still, moveX: 1 }, facingForward, 1, opts);
+    expect(rig2.x).toBeCloseTo(LOCO.speed);
+  });
+
   it('pushing right slides to your right', () => {
     const rig = createRig();
     stepRig(rig, { ...still, moveX: 1 }, facingForward, 1);

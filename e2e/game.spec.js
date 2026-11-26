@@ -270,3 +270,12 @@ test('catches start over on every page load unless ?save is in the URL', async (
   await page.waitForFunction(() => window.__game?.progress);
   expect(await catches()).toBe(1);
 });
+
+test('fake yard: ?invert flips forward/back on the left stick', async ({ page }) => {
+  await enter(page, '#enter-vr', '&invert');
+  await page.waitForFunction(() => window.__game.hands.length === 2, null, { timeout: 10_000 });
+  // Head faces -Z. Pushing forward should now move toward +Z (backward).
+  await page.evaluate(() => window.__xrDevice.controllers.left.updateAxes('thumbstick', 0, -1));
+  await page.waitForFunction(() => window.__game.rig.z > 0.5, null, { timeout: 5_000 });
+  await page.evaluate(() => window.__xrDevice.controllers.left.updateAxes('thumbstick', 0, 0));
+});
