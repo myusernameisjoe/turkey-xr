@@ -14,11 +14,12 @@ Play it: https://myusernameisjoe.github.io/turkey-xr/
 - **Item Board**: press A or X, look at a button, and click to swap items.
 - **Unlocks by catches**: catch turkeys to earn items. The new item goes straight into your hand.
 - **Wet Noodle** (1 catch): swing it to bonk the turkey dizzy, then grab it.
+- **Red Whip** (5 catches): swing it at the turkey to stun it. Crack it on the ground to get pulled over there in the fake yard; in your real yard (AR) the turkey gets pulled toward you instead.
 - **Fresh start every game**: catches reset each time the page loads. `?save` keeps them.
 
 ## In progress
 
-- **Red whip** (5 catches): grapples the turkey or pulls you along the ground toward it.
+- _(nothing right now)_
 
 ## Ideas
 
