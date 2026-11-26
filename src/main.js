@@ -7,6 +7,7 @@ import { createYard, createAreaRing } from './yard.js';
 import { LOCO, createRig, stepRig } from './locomotion.js';
 import { FLIGHT, stepFlight } from './flight.js';
 import { createTalons } from './items/eagle.js';
+import { createStrawHat } from './items/rubberArms.js';
 import { renderGobbleBuffer, renderChimeBuffer, renderBonkBuffer } from './audio.js';
 import { createTextPanel } from './hud.js';
 import { ITEMS, getItem } from './items/index.js';
@@ -188,6 +189,18 @@ window.__game = game; // read by the automated tests
 // Add ?save to the URL to keep catches and unlocks on the headset between visits.
 const progress = createProgress(UNLOCKS, params.has('save') ? globalThis.localStorage : null);
 if (params.has('reset')) progress.reset();
+// Testing shortcut: ?catches=10 starts you with 10 catches (and the best item they unlock).
+if (params.has('catches')) {
+  const n = Math.min(99, parseInt(params.get('catches'), 10) || 0);
+  let best = null;
+  while (progress.totalCatches < n) best = progress.recordCatch().at(-1) ?? best;
+  if (best) progress.equip(best);
+}
+// Rubber arms come with a straw hat. It rides on your head; look up a bit to see the brim.
+const strawHat = createStrawHat();
+strawHat.position.set(0, 0.13, 0.08); // above and a bit behind your eyes, like a real hat
+strawHat.visible = false;
+camera.add(strawHat);
 let item = null; // { def, instance }
 function equipItem(id) {
   const def = getItem(id);
@@ -203,6 +216,8 @@ function equipItem(id) {
     h.talons.visible = game.eagle;
   }
   if (!game.eagle) releaseTalons();
+  strawHat.visible = def.id === 'rubber-arms';
+  game.strawHat = strawHat.visible;
   updateScore();
 }
 const board = createBoard({ items: ITEMS, progress, onEquip: equipItem });
@@ -223,6 +238,7 @@ game.equipped = progress.equipped;
 const scoreEl = document.getElementById('score');
 function updateScore() {
   if (game.eagle) wristPanel.setText(`${game.score} caught`, 'Grip grab, A up, B down');
+  else if (game.equipped === 'rubber-arms') wristPanel.setText(`${game.score} caught`, 'Trigger punches, A/X items');
   else wristPanel.setText(`${game.score} caught`, 'Press A or X for items');
   scoreEl.textContent = `Caught: ${game.score}`;
 }
@@ -288,6 +304,7 @@ function onCatch(hand, itemName) {
     const def = getItem(unlocked[unlocked.length - 1]);
     if (progress.equip(def.id)) equipItem(def.id);
     if (def.id === 'eagle') banner.setText("You're an EAGLE!", 'Grip to grab it, fly up, drop it');
+    else if (def.id === 'rubber-arms') banner.setText('RUBBER ARMS!', 'Point, pull the trigger, BONK');
     else banner.setText('New item!', def.name);
     game.lastUnlock = def.id;
   } else {
@@ -451,7 +468,8 @@ renderer.setAnimationLoop(() => {
 
   // Equipped item physics + hits.
   if (item?.instance && itemHand?.inputSource) {
-    item.instance.update(dt, itemHand.grip);
+    const trigger = !board.isOpen && !!itemHand.inputSource.gamepad?.buttons?.[0]?.pressed;
+    item.instance.update(dt, itemHand.grip, { trigger, aim: itemHand.pointer });
     if (!board.isOpen && turkeyState.mode !== 'caught' &&
         turkeyState.mode !== 'stunned' &&
         item.instance.hits({ x: turkeyState.x, y: cfg.bodyHeight, z: turkeyState.z })) {

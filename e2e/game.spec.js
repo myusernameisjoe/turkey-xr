@@ -388,3 +388,48 @@ test('eagle mode: the 2nd catch turns you into an eagle; fly up, grab, drop it d
   await page.screenshot({ path: 'test-results/eagle-caught.png' });
   expect(errors).toEqual([]);
 });
+
+test('rubber arms (?catches=10): straw hat on, pull the trigger and the fist stretches out and bonks the turkey', async ({ page }) => {
+  const errors = await enter(page, '#enter-vr', '&hard&catches=10');
+  await page.waitForFunction(() => window.__game.hands.length === 2, null, { timeout: 10_000 });
+  expect(await page.evaluate(() => window.__game.equipped)).toBe('rubber-arms');
+  expect(await page.evaluate(() => window.__game.strawHat)).toBe(true);
+
+  // Stand 3 m behind the turkey (head far away so it doesn't run), aim at it, and keep punching.
+  await page.evaluate(() => {
+    const d = window.__xrDevice;
+    const c = d.controllers.right;
+    d.position.set(d.position.x + 20, d.position.y, d.position.z);
+    let maxReach = 0;
+    const t0 = performance.now();
+    const step = () => {
+      const g = window.__game;
+      const t = g.turkey;
+      const h = g.hands[1];
+      if (h) {
+        // Hand 3 m from the turkey, at chest height.
+        c.position.x += t.x - h.x;
+        c.position.y += 1.0 - h.y;
+        c.position.z += t.z + 3 - h.z;
+        // Point the controller at the turkey's body.
+        const dx = 0, dy = g.cfg.bodyHeight - 1.0, dz = -3;
+        const len = Math.hypot(dx, dy, dz);
+        const yaw = Math.atan2(-dx, -dz) / 2, pitch = Math.asin(dy / len) / 2;
+        c.quaternion.set(Math.cos(yaw) * Math.sin(pitch), Math.sin(yaw) * Math.cos(pitch), -Math.sin(yaw) * Math.sin(pitch), Math.cos(yaw) * Math.cos(pitch));
+        // Squeeze and let go of the trigger every 0.4 s.
+        c.updateButtonValue('trigger', Math.floor((performance.now() - t0) / 400) % 2 ? 0 : 1);
+        maxReach = Math.max(maxReach, g.item.instance.punch.dist);
+        g.maxReach = maxReach;
+      }
+      if (g.turkey.mode !== 'stunned') requestAnimationFrame(step);
+      else c.updateButtonValue('trigger', 0);
+    };
+    step();
+  });
+  await page.waitForFunction(() => window.__game.turkey.mode === 'stunned', null, { timeout: 15_000 });
+  // It reached the turkey ~3 m away with no hand anywhere near it.
+  expect(await page.evaluate(() => window.__game.maxReach)).toBeGreaterThan(2);
+  expect(await page.evaluate(() => window.__game.score)).toBe(0);
+  await page.screenshot({ path: 'test-results/rubber-arms.png' });
+  expect(errors).toEqual([]);
+});
