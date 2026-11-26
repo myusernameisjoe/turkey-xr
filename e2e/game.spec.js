@@ -213,3 +213,26 @@ test('look-and-click: aiming your head at a board button and pulling the trigger
   await page.waitForFunction(() => !window.__game.board.isOpen, null, { timeout: 5_000 });
   expect(errors).toEqual([]);
 });
+
+test('fake yard: left stick glides, right stick snap-turns', async ({ page }) => {
+  const errors = await enter(page, '#enter-vr');
+  await page.waitForFunction(() => window.__game.hands.length === 2, null, { timeout: 10_000 });
+  // Push the left stick forward for a moment.
+  await page.evaluate(() => window.__xrDevice.controllers.left.updateAxes('thumbstick', 0, -1));
+  await page.waitForFunction(() => Math.hypot(window.__game.rig.x, window.__game.rig.z) > 0.5, null, { timeout: 5_000 });
+  await page.evaluate(() => window.__xrDevice.controllers.left.updateAxes('thumbstick', 0, 0));
+  // Flick the right stick right: one 30-degree turn.
+  await page.evaluate(() => window.__xrDevice.controllers.right.updateAxes('thumbstick', 1, 0));
+  await page.waitForFunction(() => window.__game.rig.yaw < -0.5, null, { timeout: 5_000 });
+  await page.waitForTimeout(300);
+  expect(await page.evaluate(() => window.__game.rig.yaw)).toBeCloseTo(-Math.PI / 6);
+  expect(errors).toEqual([]);
+});
+
+test('AR yard: sticks do not move the player', async ({ page }) => {
+  await enter(page, '#enter-ar');
+  await page.waitForFunction(() => window.__game.hands.length === 2, null, { timeout: 10_000 });
+  await page.evaluate(() => window.__xrDevice.controllers.left.updateAxes('thumbstick', 0, -1));
+  await page.waitForTimeout(500);
+  expect(await page.evaluate(() => window.__game.rig.x === 0 && window.__game.rig.z === 0)).toBe(true);
+});
