@@ -34,7 +34,7 @@ export const UNLOCKS = [
 | `touch` | done | hand touches the turkey | bare hands |
 | `swing` | done (wet noodle) | a moving stick/chain passes through the turkey fast enough (`swingHits` in `src/combat.js`) | frying pan, baguette, pool noodle, whip that yanks the turkey to you (tried 2026-11-26, shelved) |
 | `talons` | done (eagle, at 2 catches) | not held: your hands become eagle feet. Grip grabs the turkey (`grabWithTalons` in `src/turkeyBrain.js`), A/B fly up/down (`src/flight.js`), drop it from 1.2 m+ and it lands dizzy, then touch it | |
-| `launch` | done (gum glob at 8 catches, rubber arms at 10) | rubber arms: trigger throws the fist straight out 4 m and it snaps back (`stepPunch`/`punchHits` in `src/combat.js`), comes with a straw hat. Gum glob: trigger lobs pink gum in an arc with gravity (`stepLob`/`lobHits`); a splat within 0.5 m glues the turkey down for 10 s (`stickTurkey` in `src/turkeyBrain.js`) | slingshot, cranberry cannon, water balloons |
+| `launch` | done (gum glob at 8 catches, rubber arms at 10) | rubber arms (one per hand, `bothHands: true`): either trigger throws that fist straight out 4 m and it snaps back (`stepPunch`/`punchHits` in `src/combat.js`), comes with a straw hat. Gum glob: trigger lobs pink gum in an arc with gravity (`stepLob`/`lobHits`); a splat within 0.5 m glues the turkey down for 10 s (`stickTurkey` in `src/turkeyBrain.js`) | slingshot, cranberry cannon, water balloons |
 | `spray` | to build | anything in a cone in front of the hand | leaf blower, flamethrower, gravy hose |
 
 When building `launch` or `spray`, add the hit math to `src/combat.js` with a unit test, like `swingHits`.
