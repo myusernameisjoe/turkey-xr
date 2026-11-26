@@ -178,7 +178,9 @@ const game = {
 window.__game = game; // read by the automated tests
 
 // ---------- Items & unlocks ----------
-const progress = createProgress(UNLOCKS);
+// Every visit starts fresh (0 catches, bare hands), so items are earned each game.
+// Add ?save to the URL to keep catches and unlocks on the headset between visits.
+const progress = createProgress(UNLOCKS, params.has('save') ? globalThis.localStorage : null);
 if (params.has('reset')) progress.reset();
 let item = null; // { def, instance }
 function equipItem(id) {

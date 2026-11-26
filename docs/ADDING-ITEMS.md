@@ -1,7 +1,8 @@
 # Adding items and unlocks
 
 The game has an **item ladder** (lame → awesome). Items unlock by **catching turkeys**: the total
-count is saved on the headset, so it adds up across play sessions. A newly unlocked item goes
+count starts at 0 every time the page loads, so items must be earned again each game
+(add `?save` to the URL to keep the count on the headset between visits). A newly unlocked item goes
 straight into your hand; press **A** or **X** to open the Item Board and swap.
 
 ## Change when items unlock (no coding)
@@ -44,10 +45,10 @@ npm test           # unit tests (fast)
 npm run test:e2e   # plays the game in the headset emulator
 ```
 
-On desktop, open `/?emulate`. To unlock everything while testing, run this in the browser console and reload:
+On desktop, open `/?emulate&save`. To unlock everything while testing, run this in the browser console and reload:
 
 ```js
 localStorage.setItem('turkey-xr-progress-v2', JSON.stringify({ totalCatches: 99, equipped: 'wet-noodle' }))
 ```
 
-To reset progress on the headset: `localStorage.removeItem('turkey-xr-progress-v2')`, or add `?reset` to the URL.
+To reset saved progress (only matters with `?save`): `localStorage.removeItem('turkey-xr-progress-v2')`, or add `&reset` to the URL.
