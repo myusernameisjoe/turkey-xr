@@ -5,4 +5,5 @@
 
 export const UNLOCKS = [
   { item: 'wet-noodle', catches: 1 },
+  { item: 'whip', catches: 5 },
 ];

@@ -8,6 +8,7 @@
 // To add an item, see docs/ADDING-ITEMS.md.
 
 import { wetNoodle } from './wetNoodle.js';
+import { whip } from './whip.js';
 
 export const bareHands = {
   id: 'hands',
@@ -17,7 +18,7 @@ export const bareHands = {
   create: null,
 };
 
-export const ITEMS = [bareHands, wetNoodle];
+export const ITEMS = [bareHands, wetNoodle, whip];
 
 export function getItem(id) {
   return ITEMS.find((i) => i.id === id) || bareHands;

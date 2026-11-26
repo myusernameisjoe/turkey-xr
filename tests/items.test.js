@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { segmentPointDistance, swingHits } from '../src/combat.js';
+import { segmentPointDistance, swingHits, groundCrack } from '../src/combat.js';
 import { createNoodleSim } from '../src/items/noodleSim.js';
 import { createProgress } from '../src/progress.js';
 import { UNLOCKS } from '../src/unlocks.js';
@@ -21,6 +21,31 @@ describe('combat math', () => {
     const target = { x: 0, y: 0.35, z: 0.1 };
     expect(swingHits(pts, [3, 3], target, 0.25, 1.5)).toBe(true);
     expect(swingHits(pts, [0.5, 0.5], target, 0.25, 1.5)).toBe(false);
+  });
+});
+
+describe('whip ground crack', () => {
+  it('only grapples when the tip slaps the ground fast', () => {
+    const pts = [{ x: 0, y: 1, z: 0 }, { x: 0, y: 0.05, z: -2 }];
+    expect(groundCrack(pts, [0, 6], 4)).toEqual({ x: 0, z: -2 });
+    expect(groundCrack(pts, [0, 1], 4)).toBe(null); // just resting on the grass
+    const high = [{ x: 0, y: 1, z: 0 }, { x: 0, y: 0.8, z: -2 }];
+    expect(groundCrack(high, [0, 6], 4)).toBe(null); // fast, but in the air
+  });
+
+  it('a downward flick of the whip cracks the ground', () => {
+    const sim = createNoodleSim({ segments: 16, length: 2.5, stiffness: 0.05, gravity: 9.8 });
+    const dt = 1 / 72;
+    // Hold it up high, then flick the hand down hard.
+    for (let i = 0; i < 72; i++) sim.step({ x: 0, y: 1.2, z: 0 }, { x: 0, y: 0.7, z: -0.7 }, dt);
+    let spot = null;
+    for (let i = 0; i < 72 && !spot; i++) {
+      const s = Math.min(1, i / 10);
+      sim.step({ x: 0, y: 1.2 - 0.4 * s, z: -0.3 * s }, { x: 0, y: 0.7 - 1.4 * s, z: -0.7 }, dt);
+      spot = groundCrack(sim.points, sim.speeds, 4);
+    }
+    expect(spot).not.toBe(null);
+    expect(spot.z).toBeLessThan(-0.8); // out in front of you
   });
 });
 

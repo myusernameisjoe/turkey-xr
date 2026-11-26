@@ -279,3 +279,35 @@ test('fake yard: ?invert flips forward/back on the left stick', async ({ page })
   await page.waitForFunction(() => window.__game.rig.z > 0.5, null, { timeout: 5_000 });
   await page.evaluate(() => window.__xrDevice.controllers.left.updateAxes('thumbstick', 0, 0));
 });
+
+test('red whip: cracking it on the ground pulls you toward that spot', async ({ page }) => {
+  await page.addInitScript(() =>
+    localStorage.setItem('turkey-xr-progress-v2', JSON.stringify({ totalCatches: 5, equipped: 'whip' })));
+  const errors = await enter(page, '#enter-vr', '&save&hard');
+  await page.waitForFunction(() => window.__game.hands.length === 2, null, { timeout: 10_000 });
+  expect(await page.evaluate(() => window.__game.equipped)).toBe('whip');
+  const before = await page.evaluate(() => ({ ...window.__game.rig }));
+
+  // Raise the whip, then flick it down hard in front of you, over and over until it grapples.
+  await page.evaluate(() => {
+    const d = window.__xrDevice;
+    const c = d.controllers.right;
+    const t0 = performance.now();
+    const step = () => {
+      const s = ((performance.now() - t0) / 1000) % 1.2; // one flick every 1.2 s
+      const down = Math.min(1, Math.max(0, (s - 0.8) / 0.15)); // hold up, then snap down
+      const a = (-0.8 + 1.6 * down) / 2; // tilt from 45 degrees up to 45 degrees down
+      c.quaternion.set(Math.sin(-a), 0, 0, Math.cos(a));
+      const p = d.position;
+      c.position.set(p.x + 0.25, p.y - 0.3 - 0.3 * down, p.z - 0.3 - 0.2 * down);
+      if (!window.__game.grapples) requestAnimationFrame(step);
+    };
+    step();
+  });
+  await page.waitForFunction(() => window.__game.grapples >= 1, null, { timeout: 10_000 });
+  await page.waitForFunction(() => window.__game.rig.pull === null, null, { timeout: 3_000 });
+  const after = await page.evaluate(() => ({ ...window.__game.rig }));
+  // Pulled forward (toward -Z, where you're facing), along the ground.
+  expect(before.z - after.z).toBeGreaterThan(0.5);
+  expect(errors).toEqual([]);
+});
