@@ -1,8 +1,12 @@
 import * as THREE from 'three';
-import { DEFAULTS, EASY, createTurkey, stepTurkey, isTouching, catchTurkey, stunTurkey } from './turkeyBrain.js';
+import {
+  DEFAULTS, EASY, createTurkey, stepTurkey, isTouching, catchTurkey, stunTurkey, grabWithTalons, carryTurkey, dropTurkey,
+} from './turkeyBrain.js';
 import { createTurkeyModel } from './turkeyModel.js';
 import { createYard, createAreaRing } from './yard.js';
 import { LOCO, createRig, stepRig } from './locomotion.js';
+import { FLIGHT, stepFlight } from './flight.js';
+import { createTalons } from './items/eagle.js';
 import { renderGobbleBuffer, renderChimeBuffer, renderBonkBuffer } from './audio.js';
 import { createTextPanel } from './hud.js';
 import { ITEMS, getItem } from './items/index.js';
@@ -115,6 +119,9 @@ for (let i = 0; i < 2; i++) {
   const grip = renderer.xr.getControllerGrip(i);
   const mitt = new THREE.Mesh(new THREE.SphereGeometry(0.045, 16, 12), handMat);
   grip.add(mitt);
+  const talons = createTalons(); // shown instead of the mitt in eagle mode
+  talons.visible = false;
+  grip.add(talons);
   const pointer = renderer.xr.getController(i); // target-ray space, for pointing at the board
   const ray = new THREE.Line(
     new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0, -3)]),
@@ -122,7 +129,7 @@ for (let i = 0; i < 2; i++) {
   );
   ray.visible = false;
   pointer.add(ray);
-  const hand = { grip, pointer, ray, inputSource: null, worldPos: new THREE.Vector3(), aWasDown: false };
+  const hand = { grip, pointer, ray, mitt, talons, inputSource: null, worldPos: new THREE.Vector3(), aWasDown: false, gripWasDown: false };
   grip.addEventListener('connected', (e) => {
     hand.inputSource = e.data;
     if (e.data.handedness === 'left') grip.add(wristPanel.mesh);
@@ -189,6 +196,13 @@ function equipItem(id) {
   item = { def, instance: def.create ? def.create(scene) : null };
   game.equipped = def.id;
   game.item = item;
+  // Eagle mode: hands turn into talons.
+  game.eagle = def.id === 'eagle';
+  for (const h of hands) {
+    h.mitt.visible = !game.eagle;
+    h.talons.visible = game.eagle;
+  }
+  if (!game.eagle) releaseTalons();
   updateScore();
 }
 const board = createBoard({ items: ITEMS, progress, onEquip: equipItem });
@@ -208,7 +222,8 @@ game.equipped = progress.equipped;
 
 const scoreEl = document.getElementById('score');
 function updateScore() {
-  wristPanel.setText(`${game.score} caught`, 'Press A or X for items');
+  if (game.eagle) wristPanel.setText(`${game.score} caught`, 'Grip grab, A up, B down');
+  else wristPanel.setText(`${game.score} caught`, 'Press A or X for items');
   scoreEl.textContent = `Caught: ${game.score}`;
 }
 updateScore();
@@ -272,7 +287,8 @@ function onCatch(hand, itemName) {
   if (unlocked.length) {
     const def = getItem(unlocked[unlocked.length - 1]);
     if (progress.equip(def.id)) equipItem(def.id);
-    banner.setText('New item!', def.name);
+    if (def.id === 'eagle') banner.setText("You're an EAGLE!", 'Grip to grab it, fly up, drop it');
+    else banner.setText('New item!', def.name);
     game.lastUnlock = def.id;
   } else {
     banner.setText('Gotcha!', `${game.score} caught`);
@@ -294,20 +310,71 @@ function onStun(hand, def) {
   banner.mesh.visible = true;
 }
 
+// ---------- Eagle talons ----------
+// Squeeze the grip over the turkey's back to grab it; let go to drop it.
+let carrier = null; // the hand holding the turkey
+function useTalons() {
+  if (!game.eagle || board.isOpen) return;
+  for (const hand of hands) {
+    const down = !!hand.inputSource?.gamepad?.buttons?.[1]?.pressed; // grip / squeeze
+    if (down && !hand.gripWasDown && !carrier) {
+      hand.grip.getWorldPosition(hand.worldPos);
+      if (grabWithTalons(turkeyState, hand.worldPos, cfg)) {
+        carrier = hand;
+        game.grabs = (game.grabs || 0) + 1;
+        pulse(hand.inputSource, 0.6, 80);
+        playGobble();
+      }
+    }
+    if (!down && carrier === hand) releaseTalons();
+    hand.gripWasDown = down;
+  }
+  if (carrier) {
+    carrier.grip.getWorldPosition(carrier.worldPos);
+    carryTurkey(turkeyState, carrier.worldPos, cfg);
+  }
+}
+function releaseTalons() {
+  if (!carrier) return;
+  carrier = null;
+  dropTurkey(turkeyState);
+}
+let bannerHold = 0; // keep the banner up for a moment even if the turkey isn't dizzy
+let wasFalling = false;
+function announceLanding() {
+  const falling = turkeyState.mode === 'falling';
+  if (wasFalling && !falling) {
+    // It just hit the ground.
+    if (turkeyState.lastLanding === 'dizzy') {
+      banner.setText('DIZZY!', 'Touch it to catch it!');
+      if (bonk.buffer) {
+        if (bonk.isPlaying) bonk.stop();
+        bonk.play();
+      }
+    } else {
+      banner.setText('Too low!', 'Fly higher, then drop it');
+      bannerHold = 2;
+    }
+    banner.mesh.visible = true;
+  }
+  wasFalling = falling;
+}
+
 // ---------- Joystick movement (fake yard only) ----------
 const rigState = createRig();
 game.rig = rigState;
 function resetRig() {
-  Object.assign(rigState, createRig());
+  Object.assign(rigState, createRig(), { y: 0 });
   rig.position.set(0, 0, 0);
   rig.rotation.set(0, 0, 0);
 }
 const headDir = new THREE.Vector3();
 // Smooth turning by default; ?snap turns in 30-degree steps instead. ?invert flips forward/back.
 const locoOpts = { ...LOCO, turnMode: params.has('snap') ? 'snap' : 'smooth', invertY: params.has('invert') };
+const flyOpts = { ...locoOpts, speed: FLIGHT.speed }; // the eagle glides faster than you walk
 function moveWithSticks(dt) {
   if (game.mode !== 'vr' || board.isOpen) return;
-  const input = { moveX: 0, moveY: 0, turnX: 0 };
+  const input = { moveX: 0, moveY: 0, turnX: 0, up: false, down: false };
   for (const hand of hands) {
     // Quest thumbsticks are axes 2 (left/right) and 3 (forward/back).
     const axes = hand.inputSource?.gamepad?.axes;
@@ -317,12 +384,16 @@ function moveWithSticks(dt) {
       input.moveY = axes[3];
     } else if (hand.inputSource.handedness === 'right') {
       input.turnX = axes[2];
+      // Eagle: A (button 4) flies up, B (button 5) flies down.
+      input.up = !!hand.inputSource.gamepad.buttons?.[4]?.pressed;
+      input.down = !!hand.inputSource.gamepad.buttons?.[5]?.pressed;
     }
   }
   camera.getWorldDirection(headDir);
   const head = { x: headPos.x, z: headPos.z, yaw: Math.atan2(-headDir.x, -headDir.z) };
-  stepRig(rigState, input, head, dt, locoOpts);
-  rig.position.set(rigState.x, 0, rigState.z);
+  stepRig(rigState, input, head, dt, game.eagle ? flyOpts : locoOpts);
+  stepFlight(rigState, input, game.eagle, dt);
+  rig.position.set(rigState.x, rigState.y, rigState.z);
   rig.rotation.y = rigState.yaw;
   rig.updateMatrixWorld(true);
   camera.getWorldPosition(headPos);
@@ -352,9 +423,10 @@ renderer.setAnimationLoop(() => {
   }
   moveWithSticks(dt);
 
-  // A or X opens the Item Board.
+  // A or X opens the Item Board. (As the eagle, A flies up, so only X does.)
   for (const hand of hands) {
-    const down = !!hand.inputSource?.gamepad?.buttons?.[4]?.pressed;
+    const flyButton = game.eagle && hand.inputSource?.handedness === 'right';
+    const down = !flyButton && !!hand.inputSource?.gamepad?.buttons?.[4]?.pressed;
     if (down && !hand.aWasDown) toggleBoard();
     hand.aWasDown = down;
     hand.ray.visible = board.isOpen;
@@ -374,6 +446,9 @@ renderer.setAnimationLoop(() => {
   // The turkey waits politely while the board is open.
   if (!board.isOpen) stepTurkey(turkeyState, { x: headPos.x, z: headPos.z }, dt, cfg);
 
+  useTalons();
+  announceLanding();
+
   // Equipped item physics + hits.
   if (item?.instance && itemHand?.inputSource) {
     item.instance.update(dt, itemHand.grip);
@@ -391,7 +466,9 @@ renderer.setAnimationLoop(() => {
     if (!hand.inputSource) continue;
     hand.grip.getWorldPosition(hand.worldPos);
     game.hands.push({ x: hand.worldPos.x, y: hand.worldPos.y, z: hand.worldPos.z });
-    if (!board.isOpen && isTouching(turkeyState, hand.worldPos, cfg)) onCatch(hand, null);
+    // As the eagle, touching only catches a dizzy turkey: grab it, fly up and drop it first.
+    const canTag = !game.eagle || turkeyState.mode === 'stunned';
+    if (!board.isOpen && canTag && isTouching(turkeyState, hand.worldPos, cfg)) onCatch(hand, game.eagle ? 'Eagle' : null);
   }
 
   // Gobble when it starts running, and now and then while wandering.
@@ -408,7 +485,8 @@ renderer.setAnimationLoop(() => {
   if (banner.mesh.visible) {
     banner.mesh.position.set(turkeyState.x, 1.0, turkeyState.z);
     banner.mesh.lookAt(headPos);
-    if (turkeyState.mode !== 'caught' && turkeyState.mode !== 'stunned') banner.mesh.visible = false;
+    bannerHold = Math.max(0, bannerHold - dt);
+    if (bannerHold === 0 && turkeyState.mode !== 'caught' && turkeyState.mode !== 'stunned') banner.mesh.visible = false;
   }
 
   renderer.render(scene, camera);

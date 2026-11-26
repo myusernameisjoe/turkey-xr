@@ -55,7 +55,7 @@ describe('unlocks and progress', () => {
     }
   });
 
-  it('the wet noodle unlocks after 1 catch, and progress is saved', () => {
+  it('the wet noodle unlocks after 1 catch, the eagle after 2, and progress is saved', () => {
     const storage = fakeStorage();
     const p = createProgress(UNLOCKS, storage);
     expect(p.isUnlocked('hands')).toBe(true);
@@ -64,11 +64,12 @@ describe('unlocks and progress', () => {
 
     expect(p.recordCatch()).toEqual(['wet-noodle']);
     expect(p.isUnlocked('wet-noodle')).toBe(true);
-    expect(p.recordCatch()).toEqual([]); // only announced once
+    expect(p.recordCatch()).toEqual(['eagle']); // 2nd catch: you turn into an eagle
+    expect(p.recordCatch()).toEqual([]); // each unlock is only announced once
     expect(p.equip('wet-noodle')).toBe(true);
 
     const reloaded = createProgress(UNLOCKS, storage);
-    expect(reloaded.totalCatches).toBe(2);
+    expect(reloaded.totalCatches).toBe(3);
     expect(reloaded.equipped).toBe('wet-noodle');
     reloaded.reset();
     expect(reloaded.isUnlocked('wet-noodle')).toBe(false);

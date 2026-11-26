@@ -301,3 +301,90 @@ test('fake yard: after turning right, pushing the left stick forward goes where 
   expect(Math.abs(b.z - a.z)).toBeLessThan(0.2); // ...not off at an angle
   expect(errors).toEqual([]);
 });
+
+test('eagle mode: the 2nd catch turns you into an eagle; fly up, grab, drop it dizzy, then touch to catch', async ({ page }) => {
+  const errors = await enter(page, '#enter-vr', '&hard');
+  await page.waitForFunction(() => window.__game.hands.length === 2, null, { timeout: 10_000 });
+  await page.evaluate(() => window.__game.progress.recordCatch()); // pretend you already caught one
+
+  // Catch one more by hand: that's 2, so you become the eagle automatically.
+  await page.evaluate(() => {
+    const d = window.__xrDevice;
+    const step = () => {
+      const t = window.__game.turkey;
+      const h = window.__game.hands[1];
+      const c = d.controllers.right.position;
+      c.x += t.x - h.x;
+      c.y += window.__game.cfg.bodyHeight - h.y;
+      c.z += t.z - h.z;
+      if (window.__game.score === 0) requestAnimationFrame(step);
+      else c.set(d.position.x + 0.25, d.position.y - 0.3, d.position.z - 0.3);
+    };
+    step();
+  });
+  await page.waitForFunction(() => window.__game.score === 1, null, { timeout: 10_000 });
+  expect(await page.evaluate(() => window.__game.lastUnlock)).toBe('eagle');
+  expect(await page.evaluate(() => window.__game.eagle)).toBe(true);
+  await page.waitForFunction(() => window.__game.turkey.mode !== 'caught', null, { timeout: 15_000 });
+
+  // Hold A to fly up. As the eagle, A must not open the Item Board.
+  await page.evaluate(() => window.__xrDevice.controllers.right.updateButtonValue('a-button', 1));
+  await page.waitForFunction(() => window.__game.rig.y > 2, null, { timeout: 5_000 });
+  await page.evaluate(() => window.__xrDevice.controllers.right.updateButtonValue('a-button', 0));
+  expect(await page.evaluate(() => window.__game.board.isOpen)).toBe(false);
+
+  // Swoop the right talon onto the turkey's back (this touch alone must NOT catch it), then squeeze.
+  await page.evaluate(() => {
+    const d = window.__xrDevice;
+    d.position.x += 20; // keep the head far away so the turkey doesn't run
+    const step = () => {
+      const g = window.__game;
+      const t = g.turkey;
+      const h = g.hands[1];
+      const c = d.controllers.right.position;
+      if (g.turkey.mode !== 'carried') {
+        c.x += t.x - h.x;
+        c.y += g.cfg.bodyHeight + 0.3 - h.y;
+        c.z += t.z - h.z;
+        requestAnimationFrame(step);
+      }
+    };
+    step();
+    setTimeout(() => d.controllers.right.updateButtonValue('squeeze', 1), 300);
+  });
+  await page.waitForFunction(() => window.__game.turkey.mode === 'carried', null, { timeout: 5_000 });
+  expect(await page.evaluate(() => window.__game.score)).toBe(1);
+
+  // Lift it up high (you're flying, so just raise the hand a bit) and let go.
+  await page.evaluate(() => {
+    const c = window.__xrDevice.controllers.right;
+    c.position.y += 1.5;
+  });
+  await page.waitForFunction(() => window.__game.turkey.y > 1.5, null, { timeout: 5_000 });
+  await page.evaluate(() => window.__xrDevice.controllers.right.updateButtonValue('squeeze', 0));
+  await page.waitForFunction(() => window.__game.turkey.mode === 'stunned', null, { timeout: 5_000 });
+  expect(await page.evaluate(() => window.__game.turkey.lastLanding)).toBe('dizzy');
+
+  // Fly down with B and tag the dizzy turkey.
+  await page.evaluate(() => window.__xrDevice.controllers.right.updateButtonValue('b-button', 1));
+  await page.waitForFunction(() => window.__game.rig.y === 0, null, { timeout: 5_000 });
+  await page.evaluate(() => {
+    const d = window.__xrDevice;
+    d.controllers.right.updateButtonValue('b-button', 0);
+    const step = () => {
+      const g = window.__game;
+      const t = g.turkey;
+      const h = g.hands[1];
+      const c = d.controllers.right.position;
+      c.x += t.x - h.x;
+      c.y += 0.6 - h.y;
+      c.z += t.z - h.z;
+      if (g.score === 1) requestAnimationFrame(step);
+    };
+    step();
+  });
+  await page.waitForFunction(() => window.__game.score === 2, null, { timeout: 5_000 });
+  expect(await page.evaluate(() => window.__game.lastCatchBy)).toBe('Eagle');
+  await page.screenshot({ path: 'test-results/eagle-caught.png' });
+  expect(errors).toEqual([]);
+});
