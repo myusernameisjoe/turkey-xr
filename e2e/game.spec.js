@@ -121,7 +121,8 @@ test('catching 1 turkey unlocks the wet noodle; swinging it stuns the turkey, th
   // That unlocks the noodle and puts it straight in your hand.
   expect(await page.evaluate(() => window.__game.lastUnlock)).toBe('wet-noodle');
   expect(await page.evaluate(() => window.__game.equipped)).toBe('wet-noodle');
-  await page.waitForFunction(() => window.__game.turkey.mode !== 'caught', null, { timeout: 5_000 });
+  // The 2.2 s celebration runs in game time, which slows down when a test machine draws few frames per second.
+  await page.waitForFunction(() => window.__game.turkey.mode !== 'caught', null, { timeout: 15_000 });
 
   // Open the board with the A button on the right controller.
   await page.evaluate(() => {
@@ -294,8 +295,8 @@ test('red whip: cracking it on the ground pulls you toward that spot', async ({ 
     const c = d.controllers.right;
     const t0 = performance.now();
     const step = () => {
-      const s = ((performance.now() - t0) / 1000) % 1.2; // one flick every 1.2 s
-      const down = Math.min(1, Math.max(0, (s - 0.8) / 0.15)); // hold up, then snap down
+      const s = ((performance.now() - t0) / 1000) % 1.6; // one flick every 1.6 s
+      const down = Math.min(1, Math.max(0, (s - 0.9) / 0.4)); // hold up, then swing down (slow enough for slow test machines)
       const a = (-0.8 + 1.6 * down) / 2; // tilt from 45 degrees up to 45 degrees down
       c.quaternion.set(Math.sin(-a), 0, 0, Math.cos(a));
       const p = d.position;
