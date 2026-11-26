@@ -201,12 +201,17 @@ const strawHat = createStrawHat();
 strawHat.position.set(0, 0.13, 0.08); // above and a bit behind your eyes, like a real hat
 strawHat.visible = false;
 camera.add(strawHat);
-let item = null; // { def, instance }
+let item = null; // { def, instance, second }  (second = a copy for the other hand, if def.bothHands)
 function equipItem(id) {
   const def = getItem(id);
   if (item?.def === def && (item.instance || !def.create)) return;
   item?.instance?.dispose();
-  item = { def, instance: def.create ? def.create(scene) : null };
+  item?.second?.dispose();
+  item = {
+    def,
+    instance: def.create ? def.create(scene) : null,
+    second: def.create && def.bothHands ? def.create(scene) : null, // rubber arms: one in each hand
+  };
   game.equipped = def.id;
   game.item = item;
   // Eagle mode: hands turn into talons.
@@ -239,7 +244,7 @@ const scoreEl = document.getElementById('score');
 function updateScore() {
   if (game.eagle) wristPanel.setText(`${game.score} caught`, 'Grip grab, A up, B down');
   else if (game.equipped === 'gum-glob') wristPanel.setText(`${game.score} caught`, 'Trigger throws gum, A/X items');
-  else if (game.equipped === 'rubber-arms') wristPanel.setText(`${game.score} caught`, 'Trigger punches, A/X items');
+  else if (game.equipped === 'rubber-arms') wristPanel.setText(`${game.score} caught`, 'Both triggers punch, A/X items');
   else wristPanel.setText(`${game.score} caught`, 'Press A or X for items');
   scoreEl.textContent = `Caught: ${game.score}`;
 }
@@ -306,7 +311,7 @@ function onCatch(hand, itemName) {
     if (progress.equip(def.id)) equipItem(def.id);
     if (def.id === 'eagle') banner.setText("You're an EAGLE!", 'Grip to grab it, fly up, drop it');
     else if (def.id === 'gum-glob') banner.setText('BUBBLEGUM!', 'Point, pull the trigger, SPLAT');
-    else if (def.id === 'rubber-arms') banner.setText('RUBBER ARMS!', 'Point, pull the trigger, BONK');
+    else if (def.id === 'rubber-arms') banner.setText('RUBBER ARMS!', 'Two of them! Pull a trigger, BONK');
     else banner.setText('New item!', def.name);
     game.lastUnlock = def.id;
   } else {
@@ -480,16 +485,18 @@ renderer.setAnimationLoop(() => {
   useTalons();
   announceLanding();
 
-  // Equipped item physics + hits.
-  if (item?.instance && itemHand?.inputSource) {
-    const trigger = !board.isOpen && !!itemHand.inputSource.gamepad?.buttons?.[0]?.pressed;
-    item.instance.update(dt, itemHand.grip, { trigger, aim: itemHand.pointer, turkey: turkeyState });
+  // Equipped item physics + hits. Most items go in one hand; rubber arms go in both.
+  const otherHand = hands.find((h) => h !== itemHand && h.inputSource);
+  for (const [hand, instance] of [[itemHand, item?.instance], [otherHand, item?.second]]) {
+    if (!instance || !hand?.inputSource) continue;
+    const trigger = !board.isOpen && !!hand.inputSource.gamepad?.buttons?.[0]?.pressed;
+    instance.update(dt, hand.grip, { trigger, aim: hand.pointer, turkey: turkeyState });
     if (!board.isOpen && turkeyState.mode !== 'caught' &&
         turkeyState.mode !== 'stunned' &&
-        item.instance.hits({ x: turkeyState.x, y: cfg.bodyHeight, z: turkeyState.z })) {
-      if (item.def.effect === 'stun') onStun(itemHand, item.def);
-      else if (item.def.effect === 'stick') onStick(itemHand, item.def);
-      else onCatch(itemHand, item.def.name);
+        instance.hits({ x: turkeyState.x, y: cfg.bodyHeight, z: turkeyState.z })) {
+      if (item.def.effect === 'stun') onStun(hand, item.def);
+      else if (item.def.effect === 'stick') onStick(hand, item.def);
+      else onCatch(hand, item.def.name);
     }
   }
 

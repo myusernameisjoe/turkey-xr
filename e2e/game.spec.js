@@ -434,6 +434,29 @@ test('rubber arms (?catches=10): straw hat on, pull the trigger and the fist str
   expect(errors).toEqual([]);
 });
 
+test('rubber arms: the LEFT trigger punches too (one rubber arm in each hand)', async ({ page }) => {
+  const errors = await enter(page, '#enter-vr', '&hard&catches=10');
+  await page.waitForFunction(() => window.__game.hands.length === 2, null, { timeout: 10_000 });
+  expect(await page.evaluate(() => !!window.__game.item.second)).toBe(true);
+  // Squeeze only the left trigger and watch the left fist fly out.
+  await page.evaluate(() => {
+    const c = window.__xrDevice.controllers.left;
+    const t0 = performance.now();
+    const step = () => {
+      const g = window.__game;
+      c.updateButtonValue('trigger', Math.floor((performance.now() - t0) / 400) % 2 ? 0 : 1);
+      g.leftReach = Math.max(g.leftReach || 0, g.item.second.punch.dist);
+      g.rightReach = Math.max(g.rightReach || 0, g.item.instance.punch.dist);
+      if (performance.now() - t0 < 1500) requestAnimationFrame(step);
+      else c.updateButtonValue('trigger', 0);
+    };
+    step();
+  });
+  await page.waitForFunction(() => window.__game.leftReach > 2, null, { timeout: 5_000 });
+  expect(await page.evaluate(() => window.__game.rightReach)).toBe(0); // right fist stayed put
+  expect(errors).toEqual([]);
+});
+
 test('gum glob (?catches=8): pull the trigger, the gum arcs over and the turkey is stuck', async ({ page }) => {
   const errors = await enter(page, '#enter-vr', '&hard&catches=8');
   await page.waitForFunction(() => window.__game.hands.length === 2, null, { timeout: 10_000 });

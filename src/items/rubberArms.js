@@ -4,12 +4,14 @@ import { createPunch, firePunch, stepPunch, punchHits } from '../combat.js';
 // LAUNCH item: stretchy rubber arms. Unlocks at 10 catches.
 // Point at the turkey and pull the trigger: your fist shoots out on a rubbery arm,
 // bonks the turkey dizzy, and snaps back. Then run over and tag it.
+// You get one in EACH hand (bothHands), so the left trigger punches too.
 // You also get a straw hat (see createStrawHat; main.js puts it on your head).
 export const rubberArms = {
   id: 'rubber-arms',
   name: 'Rubber Arms',
   type: 'launch',
-  blurb: 'Point and pull the trigger: your fist stretches way out and bonks the turkey!',
+  blurb: 'Two stretchy arms! Pull either trigger: your fist stretches way out and bonks the turkey!',
+  bothHands: true, // main.js puts one in each hand
   reach: 4, // metres the fist can fly
   outSpeed: 14, // m/s flying out (4 m in under a third of a second)
   backSpeed: 9, // m/s snapping back
