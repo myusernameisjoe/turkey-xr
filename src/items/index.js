@@ -9,6 +9,7 @@
 
 import { wetNoodle } from './wetNoodle.js';
 import { eagle } from './eagle.js';
+import { gumGlob } from './gumGlob.js';
 import { rubberArms } from './rubberArms.js';
 
 export const bareHands = {
@@ -19,7 +20,7 @@ export const bareHands = {
   create: null,
 };
 
-export const ITEMS = [bareHands, wetNoodle, eagle, rubberArms];
+export const ITEMS = [bareHands, wetNoodle, eagle, gumGlob, rubberArms];
 
 export function getItem(id) {
   return ITEMS.find((i) => i.id === id) || bareHands;

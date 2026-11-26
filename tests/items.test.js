@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { segmentPointDistance, swingHits, createPunch, firePunch, stepPunch, punchHits } from '../src/combat.js';
+import { segmentPointDistance, swingHits, createPunch, firePunch, stepPunch, punchHits, createLob, throwLob, stepLob, lobHits } from '../src/combat.js';
 import { createNoodleSim } from '../src/items/noodleSim.js';
 import { createProgress } from '../src/progress.js';
 import { UNLOCKS } from '../src/unlocks.js';
@@ -137,5 +137,66 @@ describe('rubber arms punch', () => {
     for (let i = 0; i < 9; i++) p.recordCatch();
     expect(p.isUnlocked('rubber-arms')).toBe(false);
     expect(p.recordCatch()).toEqual(['rubber-arms']);
+  });
+});
+
+describe('gum glob lob', () => {
+  const opts = { gravity: 9.8, reloadSeconds: 1 };
+  const dt = 1 / 72;
+  const up45 = { x: 0, y: Math.SQRT1_2, z: -Math.SQRT1_2 };
+  const throwAt = (target, dir = up45, speed = 8) => {
+    const s = createLob();
+    throwLob(s, { x: 0, y: 1, z: 0 }, dir, speed);
+    for (let i = 0; i < 1000 && s.phase !== 'ready'; i++) {
+      stepLob(s, dt, opts);
+      if (target && lobHits(s, target, 0.3, 0.5)) return { s, hit: true };
+    }
+    return { s, hit: false };
+  };
+
+  it('flies in an arc, lands about 7 m away, and reloads', () => {
+    const s = createLob();
+    expect(throwLob(s, { x: 0, y: 1, z: 0 }, up45, 8)).toBe(true);
+    expect(throwLob(s, { x: 0, y: 1, z: 0 }, up45, 8)).toBe(false); // one gum ball at a time
+    let top = 0;
+    while (s.phase === 'flying') {
+      stepLob(s, dt, opts);
+      top = Math.max(top, s.pos.y);
+    }
+    expect(top).toBeGreaterThan(2); // it goes up before it comes down
+    expect(-s.pos.z).toBeGreaterThan(6.5);
+    expect(-s.pos.z).toBeLessThan(8);
+    expect(s.phase).toBe('landed');
+    for (let i = 0; i < 80; i++) stepLob(s, dt, opts);
+    expect(s.phase).toBe('ready');
+  });
+
+  it('sticks when it lands next to the turkey, misses when it lands far away', () => {
+    const landZ = -throwAt(null).s.pos.z;
+    expect(throwAt({ x: 0.3, y: 0.35, z: -landZ }).hit).toBe(true); // splat 0.3 m from its feet
+    expect(throwAt({ x: 1.5, y: 0.35, z: -landZ }).hit).toBe(false);
+    expect(throwAt({ x: 0, y: 0.35, z: -landZ / 2 }).hit).toBe(false); // flies right over it
+  });
+
+  it('a gum ball thrown straight at the body hits on the way', () => {
+    const d = Math.hypot(3, 0.65);
+    expect(throwAt({ x: 0, y: 0.35, z: -3 }, { x: 0, y: -0.65 / d, z: -3 / d }, 14).hit).toBe(true);
+  });
+
+  it('hits only once per throw', () => {
+    const s = createLob();
+    throwLob(s, { x: 0, y: 0.35, z: 0 }, { x: 0, y: 0, z: -1 }, 5);
+    stepLob(s, dt, opts);
+    expect(lobHits(s, { x: 0, y: 0.35, z: -0.05 }, 0.3, 0.5)).toBe(true);
+    stepLob(s, dt, opts);
+    expect(lobHits(s, { x: 0, y: 0.35, z: -0.1 }, 0.3, 0.5)).toBe(false);
+  });
+
+  it('unlocks at 8 catches, before rubber arms', () => {
+    const p = createProgress(UNLOCKS, null);
+    for (let i = 0; i < 7; i++) p.recordCatch();
+    expect(p.isUnlocked('gum-glob')).toBe(false);
+    expect(p.recordCatch()).toEqual(['gum-glob']);
+    expect(ITEMS.findIndex((i) => i.id === 'gum-glob')).toBeLessThan(ITEMS.findIndex((i) => i.id === 'rubber-arms'));
   });
 });

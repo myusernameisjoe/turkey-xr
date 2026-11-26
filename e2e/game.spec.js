@@ -433,3 +433,52 @@ test('rubber arms (?catches=10): straw hat on, pull the trigger and the fist str
   await page.screenshot({ path: 'test-results/rubber-arms.png' });
   expect(errors).toEqual([]);
 });
+
+test('gum glob (?catches=8): pull the trigger, the gum arcs over and the turkey is stuck', async ({ page }) => {
+  const errors = await enter(page, '#enter-vr', '&hard&catches=8');
+  await page.waitForFunction(() => window.__game.hands.length === 2, null, { timeout: 10_000 });
+  expect(await page.evaluate(() => window.__game.equipped)).toBe('gum-glob');
+
+  // Head far away so it doesn't run. Right hand 1 m up, 3.6 m behind the turkey, pointing level:
+  // a level throw at 8 m/s falls 1 m in about 0.45 s, landing right at the turkey's feet.
+  await page.evaluate(() => {
+    const d = window.__xrDevice;
+    const c = d.controllers.right;
+    d.position.set(d.position.x + 20, d.position.y, d.position.z);
+    const t0 = performance.now();
+    const step = () => {
+      const g = window.__game;
+      const t = g.turkey;
+      const h = g.hands[1];
+      if (h) {
+        c.position.x += t.x - h.x;
+        c.position.y += 1.0 - h.y;
+        c.position.z += t.z + 3.6 - h.z;
+        c.quaternion.set(0, 0, 0, 1);
+        c.updateButtonValue('trigger', Math.floor((performance.now() - t0) / 400) % 2 ? 0 : 1);
+      }
+      if (!g.turkey.stuck) requestAnimationFrame(step);
+      else c.updateButtonValue('trigger', 0);
+    };
+    step();
+  });
+  await page.waitForFunction(() => window.__game.turkey.stuck, null, { timeout: 15_000 });
+  const at = await page.evaluate(() => ({ x: window.__game.turkey.x, z: window.__game.turkey.z }));
+  // The pink puddle shows up under it (drawn from the next frame on).
+  await page.waitForFunction(() => window.__game.item.instance.puddle.visible, null, { timeout: 2_000 });
+  await page.waitForTimeout(2000);
+  const later = await page.evaluate(() => ({ x: window.__game.turkey.x, z: window.__game.turkey.z, mode: window.__game.turkey.mode }));
+  expect(later.mode).toBe('stunned');
+  expect(Math.hypot(later.x - at.x, later.z - at.z)).toBeLessThan(0.01); // glued in place
+  expect(await page.evaluate(() => window.__game.score)).toBe(0);
+  // Walk up and look down at it for the screenshot (it can't run away).
+  await page.evaluate(() => {
+    const d = window.__xrDevice, t = window.__game.turkey;
+    d.position.set(t.x + 0.4, 1.3, t.z + 1.3);
+    const pitch = -0.6 / 2, yaw = 0.3 / 2;
+    d.quaternion.set(Math.sin(pitch) * Math.cos(yaw), Math.cos(pitch) * Math.sin(yaw), -Math.sin(pitch) * Math.sin(yaw), Math.cos(pitch) * Math.cos(yaw));
+  });
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: 'test-results/gum-glob.png' });
+  expect(errors).toEqual([]);
+});
