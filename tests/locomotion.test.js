@@ -40,18 +40,50 @@ describe('joystick glide', () => {
   });
 });
 
-describe('snap turn', () => {
+const SNAP = { ...LOCO, turnMode: 'snap' };
+
+describe('smooth turn (default)', () => {
+  it('full right stick turns right at turnSpeed, a little each frame', () => {
+    const rig = createRig();
+    stepRig(rig, { ...still, turnX: 1 }, facingForward, 1 / 72);
+    expect(rig.yaw).toBeCloseTo(-LOCO.turnSpeed / 72);
+    for (let i = 1; i < 72; i++) stepRig(rig, { ...still, turnX: 1 }, facingForward, 1 / 72);
+    expect(rig.yaw).toBeCloseTo(-LOCO.turnSpeed); // one second
+  });
+
+  it('a gentle push turns slower, and tiny wobble does nothing', () => {
+    const rig = createRig();
+    stepRig(rig, { ...still, turnX: -0.6 }, facingForward, 1);
+    expect(rig.yaw).toBeGreaterThan(0);
+    expect(rig.yaw).toBeLessThan(LOCO.turnSpeed * 0.6);
+    const still2 = createRig();
+    stepRig(still2, { ...still, turnX: 0.1 }, facingForward, 1);
+    expect(still2.yaw).toBe(0);
+  });
+
+  it('turns around your head, so your head stays put', () => {
+    const rig = createRig();
+    const head = { x: 1, z: 0, yaw: 0 };
+    for (let i = 0; i < 36; i++) stepRig(rig, { ...still, turnX: 1 }, head, 1 / 72);
+    const hx = rig.x + 1 * Math.cos(rig.yaw);
+    const hz = rig.z - 1 * Math.sin(rig.yaw);
+    expect(hx).toBeCloseTo(1);
+    expect(hz).toBeCloseTo(0);
+  });
+});
+
+describe('snap turn (?snap)', () => {
   it('one flick right turns 30 degrees right, once', () => {
     const rig = createRig();
-    for (let i = 0; i < 10; i++) stepRig(rig, { ...still, turnX: 1 }, facingForward, 1 / 72);
+    for (let i = 0; i < 10; i++) stepRig(rig, { ...still, turnX: 1 }, facingForward, 1 / 72, SNAP);
     expect(rig.yaw).toBeCloseTo(-LOCO.snapAngle);
   });
 
   it('let go and flick again to turn again', () => {
     const rig = createRig();
-    stepRig(rig, { ...still, turnX: -1 }, facingForward, 1 / 72);
-    stepRig(rig, still, facingForward, 1 / 72);
-    stepRig(rig, { ...still, turnX: -1 }, facingForward, 1 / 72);
+    stepRig(rig, { ...still, turnX: -1 }, facingForward, 1 / 72, SNAP);
+    stepRig(rig, still, facingForward, 1 / 72, SNAP);
+    stepRig(rig, { ...still, turnX: -1 }, facingForward, 1 / 72, SNAP);
     expect(rig.yaw).toBeCloseTo(2 * LOCO.snapAngle);
   });
 
@@ -59,7 +91,7 @@ describe('snap turn', () => {
     // Player stands 1 m to the right of the rig's center.
     const rig = createRig();
     const head = { x: 1, z: 0, yaw: 0 };
-    stepRig(rig, { ...still, turnX: 1 }, head, 1 / 72);
+    stepRig(rig, { ...still, turnX: 1 }, head, 1 / 72, SNAP);
     // Where does the head end up? Rotate its offset from the rig by the rig's new yaw.
     const local = { x: 1, z: 0 };
     const hx = rig.x + local.x * Math.cos(rig.yaw) + local.z * Math.sin(rig.yaw);

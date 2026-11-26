@@ -5,12 +5,16 @@
 // sticks just move the rig on top of that.
 //
 //   Left stick:  glide in the direction you push (forward = where you're looking).
-//   Right stick: flick left/right to turn in quick 30-degree steps.
+//   Right stick: push left/right to turn smoothly (push further = turn faster).
+//                With ?snap in the URL it turns in 30-degree steps instead, which
+//                some people find more comfortable if smooth turning makes them queasy.
 
 export const LOCO = {
   speed: 2.5, // meters per second at full stick (a brisk walk)
   deadzone: 0.2, // ignore tiny stick wobble
-  snapAngle: Math.PI / 6, // 30 degrees per flick
+  turnMode: 'smooth', // 'smooth' or 'snap'
+  turnSpeed: (90 * Math.PI) / 180, // smooth: 90 degrees per second at full stick
+  snapAngle: Math.PI / 6, // snap: 30 degrees per flick
   turnPush: 0.6, // how far to push the right stick before it turns
   turnRelease: 0.3, // let go past this before the next turn
 };
@@ -40,18 +44,30 @@ export function stepRig(rig, input, head, dt, opts = LOCO) {
     rig.z += (rz * sx - fz * sy) * step;
   }
 
-  // Snap turn, spinning around the player's head so they don't swing sideways.
+  // Turning spins around the player's head so they don't swing sideways.
   const tx = input.turnX || 0;
+  if (opts.turnMode !== 'snap') {
+    const mag = Math.abs(tx);
+    if (mag > opts.deadzone) {
+      // Ease in from the deadzone so small pushes turn slowly.
+      const amount = Math.min(1, (mag - opts.deadzone) / (1 - opts.deadzone));
+      turnAroundHead(rig, head, -Math.sign(tx) * opts.turnSpeed * amount * dt);
+    }
+    return rig;
+  }
   if (rig.turnArmed && Math.abs(tx) > opts.turnPush) {
-    const a = -Math.sign(tx) * opts.snapAngle; // push right = turn right
-    const dx = rig.x - head.x;
-    const dz = rig.z - head.z;
-    rig.x = head.x + dx * Math.cos(a) + dz * Math.sin(a);
-    rig.z = head.z - dx * Math.sin(a) + dz * Math.cos(a);
-    rig.yaw += a;
+    turnAroundHead(rig, head, -Math.sign(tx) * opts.snapAngle); // push right = turn right
     rig.turnArmed = false;
   } else if (Math.abs(tx) < opts.turnRelease) {
     rig.turnArmed = true;
   }
   return rig;
+}
+
+function turnAroundHead(rig, head, a) {
+  const dx = rig.x - head.x;
+  const dz = rig.z - head.z;
+  rig.x = head.x + dx * Math.cos(a) + dz * Math.sin(a);
+  rig.z = head.z - dx * Math.sin(a) + dz * Math.cos(a);
+  rig.yaw += a;
 }

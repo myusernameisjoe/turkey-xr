@@ -214,8 +214,8 @@ test('look-and-click: aiming your head at a board button and pulling the trigger
   expect(errors).toEqual([]);
 });
 
-test('fake yard: left stick glides, right stick snap-turns', async ({ page }) => {
-  const errors = await enter(page, '#enter-vr');
+test('fake yard: left stick glides, right stick snap-turns with ?snap', async ({ page }) => {
+  const errors = await enter(page, '#enter-vr', '&snap');
   await page.waitForFunction(() => window.__game.hands.length === 2, null, { timeout: 10_000 });
   // Push the left stick forward for a moment.
   await page.evaluate(() => window.__xrDevice.controllers.left.updateAxes('thumbstick', 0, -1));
@@ -228,6 +228,22 @@ test('fake yard: left stick glides, right stick snap-turns', async ({ page }) =>
   expect(await page.evaluate(() => window.__game.rig.yaw)).toBeCloseTo(-Math.PI / 6);
   expect(errors).toEqual([]);
 });
+test('fake yard: right stick turns smoothly by default, snap with ?snap', async ({ page }) => {
+  await enter(page, '#enter-vr');
+  await page.waitForFunction(() => window.__game.hands.length === 2, null, { timeout: 10_000 });
+  await page.evaluate(() => window.__xrDevice.controllers.right.updateAxes('thumbstick', 1, 0));
+  // Sample the turn over time: it should keep growing in small steps, not jump.
+  const samples = await page.evaluate(() => new Promise((res) => {
+    const out = [];
+    const f = () => { out.push(window.__game.rig.yaw); if (out.length < 40) requestAnimationFrame(f); else res(out); };
+    requestAnimationFrame(f);
+  }));
+  await page.evaluate(() => window.__xrDevice.controllers.right.updateAxes('thumbstick', 0, 0));
+  const steps = samples.slice(1).map((y, i) => samples[i] - y);
+  expect(samples.at(-1)).toBeLessThan(-0.2); // turned right
+  expect(Math.max(...steps)).toBeLessThan(0.1); // no frame jumps more than ~6 degrees
+});
+
 
 test('AR yard: sticks do not move the player', async ({ page }) => {
   await enter(page, '#enter-ar');
