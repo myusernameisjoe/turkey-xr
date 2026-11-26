@@ -125,6 +125,7 @@ export function stepTurkey(t, player, dt, cfg = DEFAULTS, rng = Math.random) {
     t.stunAge += dt;
     if (t.timer <= 0) {
       t.mode = 'wander';
+      t.stuck = false; // broke free of the gum
       t.target = randomPoint(cfg, rng);
     }
     return t;
@@ -232,6 +233,18 @@ export function stunTurkey(t, fromX, fromZ, seconds, distance = 1) {
   t.stunAge = 0;
   t.speed = 0;
   t.heading = Math.atan2(-dx, -dz); // faces whoever bonked it
+  t.stuck = false;
+  return true;
+}
+
+/** Glue the turkey's feet to the ground (gum glob): it can't move for `seconds`, then breaks free. */
+export function stickTurkey(t, seconds) {
+  const heading = t.heading;
+  if (!stunTurkey(t, t.x, t.z, seconds, 0)) return false;
+  t.knockX = 0;
+  t.knockZ = 0;
+  t.heading = heading; // no push, so it keeps facing the way it was going
+  t.stuck = true; // read by the gum puddle and the HUD
   return true;
 }
 
@@ -269,6 +282,7 @@ export function dropTurkey(t) {
 
 function land(t, player, cfg, rng) {
   t.y = 0;
+  t.stuck = false;
   t.vy = 0;
   if (t.dropHeight >= EAGLE.dizzyHeight) {
     t.mode = 'stunned';
@@ -304,6 +318,7 @@ export function isTouching(t, hand, cfg = DEFAULTS) {
 }
 
 export function catchTurkey(t, cfg = DEFAULTS) {
+  t.stuck = false;
   t.mode = 'caught';
   t.timer = cfg.caughtSeconds;
   t.speed = 0;

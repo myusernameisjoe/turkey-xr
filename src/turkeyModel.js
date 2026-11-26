@@ -151,8 +151,15 @@ export function createTurkeyModel() {
     tail.scale.lerp(new THREE.Vector3(flare, flare, 1), Math.min(1, dt * 6));
 
     // Dizzy wobble.
-    stars.visible = state.mode === 'stunned';
-    if (state.mode === 'stunned') {
+    const stuck = state.mode === 'stunned' && !!state.stuck; // glued in gum: flaps instead of dizzy
+    stars.visible = state.mode === 'stunned' && !stuck;
+    if (stuck) {
+      dizzy += dt;
+      body.rotation.z = Math.sin(dizzy * 11) * 0.08; // tugging at its feet
+      phase += dt * 8; // flap faster
+      neck.rotation.x = -0.1 + Math.sin(dizzy * 6) * 0.15;
+      neck.rotation.z = 0;
+    } else if (state.mode === 'stunned') {
       dizzy += dt;
       stars.rotation.y += dt * 5;
       stars.children.forEach((st, i) => (st.rotation.y += dt * (4 + i)));
@@ -165,13 +172,13 @@ export function createTurkeyModel() {
       neck.rotation.z = 0;
     }
 
-    // Grabbed by the eagle (or falling): flap wings and kick legs in a panic.
-    const panicking = state.mode === 'carried' || state.mode === 'falling';
+    // Grabbed by the eagle (or falling): flap wings and kick legs in a panic. Stuck in gum: just flap.
+    const panicking = state.mode === 'carried' || state.mode === 'falling' || stuck;
     wings.forEach((w, i) => {
       const side = i === 0 ? -1 : 1;
       w.rotation.z = panicking ? side * (0.6 + Math.sin(phase * 3) * 0.6) : side * 0.15;
     });
-    if (panicking) {
+    if (panicking && !stuck) {
       phase += dt * 10;
       legs[0].rotation.x = Math.sin(phase * 1.3) * 0.9;
       legs[1].rotation.x = -Math.sin(phase * 1.3) * 0.9;

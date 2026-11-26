@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { DEFAULTS, EASY, EAGLE, createTurkey, stepTurkey, isTouching, catchTurkey, stunTurkey, grabWithTalons, carryTurkey, dropTurkey } from '../src/turkeyBrain.js';
+import { DEFAULTS, EASY, EAGLE, createTurkey, stepTurkey, isTouching, catchTurkey, stunTurkey, grabWithTalons, carryTurkey, dropTurkey, stickTurkey } from '../src/turkeyBrain.js';
 
 // Deterministic RNG so tests are repeatable.
 function seeded(seed = 1) {
@@ -192,5 +192,24 @@ describe('eagle talons', () => {
     const t = createTurkey(cfg, seeded(1));
     stunTurkey(t, t.x + 1, t.z, 3, 0);
     expect(grabWithTalons(t, { x: t.x, y: 0.7, z: t.z }, cfg)).toBe(false);
+  });
+});
+
+describe('stuck in gum', () => {
+  it("can't move for 10 seconds, can be tagged, then breaks free", () => {
+    const t = createTurkey(DEFAULTS, seeded(3));
+    t.x = 1;
+    t.z = 2;
+    expect(stickTurkey(t, 10)).toBe(true);
+    expect(t.stuck).toBe(true);
+    const far = { x: 1, z: 2.5 }; // the player standing right next to it: it would normally run
+    for (let i = 0; i < 9.5 * 60; i++) stepTurkey(t, far, 1 / 60, DEFAULTS, seeded(4));
+    expect(t.mode).toBe('stunned');
+    expect(t.x).toBeCloseTo(1);
+    expect(t.z).toBeCloseTo(2);
+    expect(isTouching(t, { x: 1.2, y: 0.8, z: 2 })).toBe(true);
+    for (let i = 0; i < 60; i++) stepTurkey(t, far, 1 / 60, DEFAULTS, seeded(4));
+    expect(t.mode).not.toBe('stunned');
+    expect(t.stuck).toBe(false);
   });
 });

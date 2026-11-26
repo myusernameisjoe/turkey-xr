@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import {
-  DEFAULTS, EASY, createTurkey, stepTurkey, isTouching, catchTurkey, stunTurkey, grabWithTalons, carryTurkey, dropTurkey,
+  DEFAULTS, EASY, createTurkey, stepTurkey, isTouching, catchTurkey, stunTurkey, stickTurkey, grabWithTalons, carryTurkey, dropTurkey,
 } from './turkeyBrain.js';
 import { createTurkeyModel } from './turkeyModel.js';
 import { createYard, createAreaRing } from './yard.js';
@@ -238,6 +238,7 @@ game.equipped = progress.equipped;
 const scoreEl = document.getElementById('score');
 function updateScore() {
   if (game.eagle) wristPanel.setText(`${game.score} caught`, 'Grip grab, A up, B down');
+  else if (game.equipped === 'gum-glob') wristPanel.setText(`${game.score} caught`, 'Trigger throws gum, A/X items');
   else if (game.equipped === 'rubber-arms') wristPanel.setText(`${game.score} caught`, 'Trigger punches, A/X items');
   else wristPanel.setText(`${game.score} caught`, 'Press A or X for items');
   scoreEl.textContent = `Caught: ${game.score}`;
@@ -304,6 +305,7 @@ function onCatch(hand, itemName) {
     const def = getItem(unlocked[unlocked.length - 1]);
     if (progress.equip(def.id)) equipItem(def.id);
     if (def.id === 'eagle') banner.setText("You're an EAGLE!", 'Grip to grab it, fly up, drop it');
+    else if (def.id === 'gum-glob') banner.setText('BUBBLEGUM!', 'Point, pull the trigger, SPLAT');
     else if (def.id === 'rubber-arms') banner.setText('RUBBER ARMS!', 'Point, pull the trigger, BONK');
     else banner.setText('New item!', def.name);
     game.lastUnlock = def.id;
@@ -324,6 +326,18 @@ function onStun(hand, def) {
     bonk.play();
   }
   banner.setText('BONK!', 'Quick, tag it!');
+  banner.mesh.visible = true;
+}
+
+function onStick(hand, def) {
+  if (!stickTurkey(turkeyState, def.stuckSeconds)) return;
+  game.sticks = (game.sticks || 0) + 1;
+  pulse(hand.inputSource, 0.8, 120);
+  if (bonk.buffer) {
+    if (bonk.isPlaying) bonk.stop();
+    bonk.play();
+  }
+  banner.setText('SPLAT!', "It's stuck! Tag it!");
   banner.mesh.visible = true;
 }
 
@@ -469,11 +483,12 @@ renderer.setAnimationLoop(() => {
   // Equipped item physics + hits.
   if (item?.instance && itemHand?.inputSource) {
     const trigger = !board.isOpen && !!itemHand.inputSource.gamepad?.buttons?.[0]?.pressed;
-    item.instance.update(dt, itemHand.grip, { trigger, aim: itemHand.pointer });
+    item.instance.update(dt, itemHand.grip, { trigger, aim: itemHand.pointer, turkey: turkeyState });
     if (!board.isOpen && turkeyState.mode !== 'caught' &&
         turkeyState.mode !== 'stunned' &&
         item.instance.hits({ x: turkeyState.x, y: cfg.bodyHeight, z: turkeyState.z })) {
       if (item.def.effect === 'stun') onStun(itemHand, item.def);
+      else if (item.def.effect === 'stick') onStick(itemHand, item.def);
       else onCatch(itemHand, item.def.name);
     }
   }

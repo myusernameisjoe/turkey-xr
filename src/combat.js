@@ -71,3 +71,58 @@ export function punchHits(state, hand, dir, target, radius) {
   const at = (d) => ({ x: hand.x + dir.x * d, y: hand.y + dir.y * d, z: hand.z + dir.z * d });
   return segmentPointDistance(at(state.lastDist), at(state.dist), target) < radius;
 }
+
+// ---------- Lobbed throw (gum glob) ----------
+// You throw a ball; gravity pulls it down in an arc until it hits the ground.
+// state.phase: 'ready' (in your hand) | 'flying' | 'landed' (splat on the ground, waiting to reload)
+// state.pos / state.last: where the ball is now / was last frame. state.vel: its velocity (m/s).
+
+export function createLob() {
+  return { phase: 'ready', pos: { x: 0, y: 0, z: 0 }, last: { x: 0, y: 0, z: 0 }, vel: { x: 0, y: 0, z: 0 }, wait: 0, hit: false };
+}
+
+/** Throw from `from` along unit vector `dir` at `speed` m/s, if the ball is in your hand. Returns true if thrown. */
+export function throwLob(state, from, dir, speed) {
+  if (state.phase !== 'ready') return false;
+  state.phase = 'flying';
+  state.pos = { ...from };
+  state.last = { ...from };
+  state.vel = { x: dir.x * speed, y: dir.y * speed, z: dir.z * speed };
+  state.hit = false;
+  return true;
+}
+
+/** Move the ball one frame. opts: { gravity (m/s²), reloadSeconds }. */
+export function stepLob(state, dt, opts) {
+  if (state.phase === 'flying') {
+    state.last = { ...state.pos };
+    state.vel.y -= opts.gravity * dt;
+    state.pos.x += state.vel.x * dt;
+    state.pos.y += state.vel.y * dt;
+    state.pos.z += state.vel.z * dt;
+    if (state.pos.y <= 0) {
+      state.pos.y = 0;
+      state.phase = 'landed';
+      state.wait = opts.reloadSeconds;
+    }
+  } else if (state.phase === 'landed') {
+    state.last = { ...state.pos };
+    state.wait -= dt;
+    if (state.wait <= 0) state.phase = 'ready';
+  }
+}
+
+/**
+ * Did the ball get the turkey this frame? Either it flew through the body (within `hitRadius`),
+ * or it splatted on the ground within `splatRadius` of the turkey's feet. Each throw hits at most once.
+ * target: {x,y,z} centre of the turkey's body.
+ */
+export function lobHits(state, target, hitRadius, splatRadius) {
+  if (state.hit || state.phase === 'ready') return false;
+  const justLanded = state.phase === 'landed' && state.last.y > 0;
+  if (state.phase === 'landed' && !justLanded) return false; // already sitting on the ground
+  let got = segmentPointDistance(state.last, state.pos, target) < hitRadius;
+  if (!got && justLanded) got = Math.hypot(state.pos.x - target.x, state.pos.z - target.z) < splatRadius;
+  if (got) state.hit = true;
+  return got;
+}
