@@ -14,6 +14,8 @@ A WebXR game for Meta Quest: a turkey is loose in the yard, and you chase it dow
 
 Catching turkeys unlocks items (the count starts over each time the page loads; add `?save` to keep it). Catch **1** turkey to get the **Wet Noodle**: swing it to bonk the turkey dizzy for 2.5 s, then grab it. Press **A** or **X** to open the Item Board and swap items. See [docs/ADDING-ITEMS.md](docs/ADDING-ITEMS.md) to add more.
 
+**Ideas:** everything we want to build next is in [IDEAS.md](IDEAS.md).
+
 `?save` keeps catches and unlocked items between visits; `?save&reset` clears them.
 
 ## Desktop testing (no headset)
