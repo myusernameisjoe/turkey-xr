@@ -1,23 +1,19 @@
-# Adding items and quests
+# Adding items and unlocks
 
-The game has an **item ladder** (lame → awesome) and **real-world quests** that unlock each item.
+The game has an **item ladder** (lame → awesome). Items unlock by **catching turkeys**: the total
+count is saved on the headset, so it adds up across play sessions. A newly unlocked item goes
+straight into your hand; press **A** or **X** to open the Item Board and swap.
 
-## Add a quest (no coding)
+## Change when items unlock (no coding)
 
-Edit `src/quests.js` and add an entry:
+Edit `src/unlocks.js`:
 
 ```js
-{
-  id: 'grandma-pie',
-  unlocks: 'frying-pan',            // must match an item id in src/items/index.js
-  task: "Ask Grandma what her favorite pie is.",
-  word: 'pecan',                    // tell Grandma this word before you play!
-  decoys: ['apple', 'pumpkin', 'cherry'],
-},
+export const UNLOCKS = [
+  { item: 'wet-noodle', catches: 1 },
+  { item: 'frying-pan', catches: 5 },   // must match an item id in src/items/index.js
+];
 ```
-
-The player sees the task on the Item Board (press **A** or **X**), does it in real life, gets the
-secret word from the person, and picks it from the four buttons. A wrong guess locks the buttons for 10 s.
 
 ## Add an item
 
@@ -28,7 +24,7 @@ secret word from the person, and picks it from the four buttons. A wrong guess l
 3. Change what it looks like in `create()`. It gets `update(dt, grip)` every frame with the
    controller it's held in, and `hits(target)` should return `true` when it hits the turkey.
 4. Add it to the `ITEMS` list in `src/items/index.js`, in ladder order.
-5. Add a quest for it in `src/quests.js`.
+5. Add a line for it in `src/unlocks.js` saying how many catches unlock it.
 
 ### Item types
 
@@ -48,10 +44,10 @@ npm test           # unit tests (fast)
 npm run test:e2e   # plays the game in the headset emulator
 ```
 
-On desktop, open `/?emulate`. To skip the quest while testing, run this in the browser console and reload:
+On desktop, open `/?emulate`. To unlock everything while testing, run this in the browser console and reload:
 
 ```js
-localStorage.setItem('turkey-xr-progress-v1', JSON.stringify({ unlocked: ['wet-noodle'], equipped: 'wet-noodle' }))
+localStorage.setItem('turkey-xr-progress-v2', JSON.stringify({ totalCatches: 99, equipped: 'wet-noodle' }))
 ```
 
-To reset progress on the headset: `localStorage.removeItem('turkey-xr-progress-v1')`, or add `?reset` to the URL.
+To reset progress on the headset: `localStorage.removeItem('turkey-xr-progress-v2')`, or add `?reset` to the URL.

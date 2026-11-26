@@ -5,7 +5,7 @@ import { createYard, createAreaRing } from './yard.js';
 import { renderGobbleBuffer, renderChimeBuffer, renderBonkBuffer } from './audio.js';
 import { createTextPanel } from './hud.js';
 import { ITEMS, getItem } from './items/index.js';
-import { QUESTS } from './quests.js';
+import { UNLOCKS } from './unlocks.js';
 import { createProgress } from './progress.js';
 import { createBoard } from './board.js';
 
@@ -171,8 +171,8 @@ const game = {
 };
 window.__game = game; // read by the automated tests
 
-// ---------- Items & quests ----------
-const progress = createProgress(QUESTS);
+// ---------- Items & unlocks ----------
+const progress = createProgress(UNLOCKS);
 if (params.has('reset')) progress.reset();
 let item = null; // { def, instance }
 function equipItem(id) {
@@ -259,8 +259,18 @@ function onCatch(hand, itemName) {
   pulse(hand.inputSource, 1, 250);
   playGobble();
   if (chime.buffer) chime.play();
-  banner.setText('Gotcha!', `${game.score} caught`);
+  // Catching turkeys unlocks items (see src/unlocks.js). A new item goes straight into your hand.
+  const unlocked = progress.recordCatch();
+  if (unlocked.length) {
+    const def = getItem(unlocked[unlocked.length - 1]);
+    if (progress.equip(def.id)) equipItem(def.id);
+    banner.setText('New item!', def.name);
+    game.lastUnlock = def.id;
+  } else {
+    banner.setText('Gotcha!', `${game.score} caught`);
+  }
   banner.mesh.visible = true;
+  board.refresh();
 }
 
 function onStun(hand, def) {

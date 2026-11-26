@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { segmentPointDistance, swingHits } from '../src/combat.js';
 import { createNoodleSim } from '../src/items/noodleSim.js';
-import { createProgress, WRONG_GUESS_LOCKOUT } from '../src/progress.js';
-import { QUESTS } from '../src/quests.js';
+import { createProgress } from '../src/progress.js';
+import { UNLOCKS } from '../src/unlocks.js';
 import { ITEMS } from '../src/items/index.js';
 
 function fakeStorage() {
@@ -45,35 +45,46 @@ describe('noodle physics', () => {
   });
 });
 
-describe('quests and progress', () => {
-  it('every quest unlocks a real item and has its answer among the choices', () => {
-    for (const q of QUESTS) {
-      expect(ITEMS.some((i) => i.id === q.unlocks)).toBe(true);
-      const p = createProgress(QUESTS, fakeStorage());
-      expect(p.choices(q)).toContain(q.word);
-      expect(q.decoys).not.toContain(q.word);
+describe('unlocks and progress', () => {
+  it('every unlock points at a real item, in ladder order', () => {
+    let last = 0;
+    for (const u of UNLOCKS) {
+      expect(ITEMS.some((i) => i.id === u.item)).toBe(true);
+      expect(u.catches).toBeGreaterThanOrEqual(last);
+      last = u.catches;
     }
   });
 
-  it('unlocks with the right word, locks out after a wrong one, and saves', () => {
+  it('the wet noodle unlocks after 1 catch, and progress is saved', () => {
     const storage = fakeStorage();
-    const p = createProgress(QUESTS, storage);
-    const q = p.questFor('wet-noodle');
+    const p = createProgress(UNLOCKS, storage);
+    expect(p.isUnlocked('hands')).toBe(true);
     expect(p.isUnlocked('wet-noodle')).toBe(false);
     expect(p.equip('wet-noodle')).toBe(false);
 
-    expect(p.guess(q, 'stuffing', 0)).toBe('wrong');
-    expect(p.guess(q, q.word, 1000)).toBe('locked-out');
-    expect(p.guess(q, q.word.toUpperCase(), WRONG_GUESS_LOCKOUT * 1000 + 1)).toBe('unlocked');
+    expect(p.recordCatch()).toEqual(['wet-noodle']);
+    expect(p.isUnlocked('wet-noodle')).toBe(true);
+    expect(p.recordCatch()).toEqual([]); // only announced once
     expect(p.equip('wet-noodle')).toBe(true);
 
-    const reloaded = createProgress(QUESTS, storage);
-    expect(reloaded.isUnlocked('wet-noodle')).toBe(true);
+    const reloaded = createProgress(UNLOCKS, storage);
+    expect(reloaded.totalCatches).toBe(2);
     expect(reloaded.equipped).toBe('wet-noodle');
+    reloaded.reset();
+    expect(reloaded.isUnlocked('wet-noodle')).toBe(false);
+  });
+
+  it('unlocks several items at the right counts', () => {
+    const p = createProgress([{ item: 'a', catches: 1 }, { item: 'b', catches: 3 }], fakeStorage());
+    expect(p.recordCatch()).toEqual(['a']);
+    expect(p.recordCatch()).toEqual([]);
+    expect(p.recordCatch()).toEqual(['b']);
+    expect(p.required('b')).toBe(3);
   });
 
   it('works without storage', () => {
-    const p = createProgress(QUESTS, null);
+    const p = createProgress(UNLOCKS, null);
     expect(p.equipped).toBe('hands');
+    expect(p.totalCatches).toBe(0);
   });
 });
